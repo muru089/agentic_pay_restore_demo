@@ -108,13 +108,13 @@ from google.genai import types
 #   Turn 3: provide new card + consent -> payment -> fee waiver -> restore
 # Note: no plan change requested -- STATE 7 skipped
 # ---------------------------------------------------------------------------
-TURNS = [
-    (1, "Our business account is suspended and I need to restore it. Account 20003."),
-    (2, "I understand the risk. I want to proceed with the restore."),
-    (3, "New card number is 4111 1111 1111 9988. Yes, go ahead."),
-]
-APP_NAME = "pay_restore_test"
-USER_ID  = "test_20003"
+# TURNS = [
+#     (1, "Our business account is suspended and I need to restore it. Account 20003."),
+#     (2, "I understand the risk. I want to proceed with the restore."),
+#     (3, "New card number is 4111 1111 1111 9988. Yes, go ahead."),
+# ]
+# APP_NAME = "pay_restore_test"
+# USER_ID  = "test_20003"
 
 # ---------------------------------------------------------------------------
 # PERSONA 4: Riley (20004) -- Waiver FAIL Rule C (prior waiver used 3mo ago)
@@ -127,7 +127,7 @@ USER_ID  = "test_20003"
 # ---------------------------------------------------------------------------
 # TURNS = [
 #     (1, "I need to restore my account. Account 20004."),
-#     (2, "Please use my new card ending in 5678."),
+#     (2, "New card is 4111 1111 1111 5678."),
 #     (3, "Yes, go ahead and charge it."),
 # ]
 # APP_NAME = "pay_restore_test"
@@ -186,6 +186,55 @@ USER_ID  = "test_20003"
 # ]
 # APP_NAME = "pay_restore_test"
 # USER_ID  = "test_20011"
+
+# ---------------------------------------------------------------------------
+# PERSONA 9: Morgan (20005) -- Waiver FAIL Rule B (autopay OFF)
+# ---------------------------------------------------------------------------
+# Status: SUSPENDED | Tenure: 18mo | Plan: Team | Card: 6644 (valid)
+# Suspension: 3 days ago -> data SAFE (11 projects)
+# Autopay: OFF | Prior waiver: None
+# Waiver result: FAIL Rule B -- AutoPay was not enabled. Rule A (18mo > 6) passes.
+# Valid card on file (autopay OFF, card was never charged). 2-turn flow.
+# Expected: $49 balance + $25 late fee disclosed upfront. Restore completes.
+# ---------------------------------------------------------------------------
+# TURNS = [
+#     (1, "Our account is suspended and I need it restored. Account 20005."),
+#     (2, "Yes, charge my card on file and restore it."),
+# ]
+# APP_NAME = "pay_restore_test"
+# USER_ID  = "test_20005"
+
+# ---------------------------------------------------------------------------
+# PERSONA 10 (ACTIVE account): Quinn (20008) -- Clean Downgrade (seat check PASS)
+# ---------------------------------------------------------------------------
+# Status: ACTIVE | Plan: Business | Seats: 5 | Wants to downgrade to Team (max 10)
+# T9: seat_count_ok=True (5 <= 10) -> eligible=True -> storage reduction warning
+# Storage: 500 GB -> 100 GB (informational, not blocking). Downgrade executes.
+# ---------------------------------------------------------------------------
+# TURNS = [
+#     (1, "I want to downgrade my plan. Account 20008."),
+#     (2, "Downgrade to Team plan."),
+#     (3, "Yes, confirm the downgrade."),
+# ]
+# APP_NAME = "pay_restore_test"
+# USER_ID  = "test_20008"
+
+# ---------------------------------------------------------------------------
+# PERSONA 11: Jamie (20009) -- Waiver FAIL Rule A Boundary (exactly 6.0 months)
+# ---------------------------------------------------------------------------
+# Status: SUSPENDED | Tenure: 6.0mo | Plan: Business | Card: 9955 (EXPIRED)
+# Suspension: 20 days ago -> data SAFE (18 projects)
+# Autopay: ON | Prior waiver: None
+# Waiver result: FAIL Rule A -- 6.0mo is NOT strictly > 6mo (boundary edge case)
+# Expired card -> Turn 1 asks for new card. Turn 2: card + consent -> restore.
+# Expected: $129 balance + $50 late fee disclosed upfront. Restore completes.
+# ---------------------------------------------------------------------------
+TURNS = [
+    (1, "I need to restore my account. Account 20009."),
+    (2, "New card number is 4111 1111 1111 7777. Yes, go ahead."),
+]
+APP_NAME = "pay_restore_test"
+USER_ID  = "test_20009"
 
 SEP = "=" * 70
 

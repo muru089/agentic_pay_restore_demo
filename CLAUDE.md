@@ -103,30 +103,26 @@ CREATE TABLE customer_accounts (
 | 20002 | today - 5d | 5 | NULL | 0 | FAIL Rule A | New customer — 2mo account age < 6mo threshold |
 | 20003 | today - 35d | 35 | NULL | 0 | PASS | Data AT RISK — 35 days exceeds 30-day retention window |
 | 20004 | today - 10d | 10 | today - 90d | 1 | FAIL Rule C | Prior waiver used 3 months ago — Rule A & B pass, Rule C blocks waiver |
-| 20005 | today - 3d | 3 | NULL | 0 | FAIL Rule B | Long tenure but autopay OFF |
+| 20005 | today - 3d | 3 | NULL | 0 | FAIL Rule B | Persona 9 — long tenure but autopay OFF |
 | 20006 | NULL | — | NULL | 0 | PASS | Active — standalone upgrade demo |
-| 20007 | NULL | — | NULL | 0 | PASS | Active — downgrade to Team blocked (25 seats > 10 max) → escalation |
-| 20008 | NULL | — | NULL | 0 | PASS | Active — clean downgrade to Team (5 seats within 10-seat limit) |
-| 20009 | today - 20d | 20 | NULL | 0 | FAIL Rule A | Boundary fail — 6.0mo is not > 6mo |
+| 20007 | NULL | — | NULL | 0 | PASS | Active — downgrade blocked (25 seats > 10 max) → escalation |
+| 20008 | NULL | — | NULL | 0 | PASS | Persona 10 — active, clean downgrade to Team (5 seats ≤ 10 max) |
+| 20009 | today - 20d | 20 | NULL | 0 | FAIL Rule A | Persona 11 — boundary: 6.0mo is not strictly > 6mo |
 | 20010 | today - 8d | 8 | NULL | 0 | PASS | Top tier (Enterprise), perfect restore |
 
-### Group B — Canceled (20011–20013)
+### Group B — Canceled (20011)
 
 **Table 1 — Identity & Plan**
 
 | ID | Name | Company | Email | Card | Card Expired | Plan | Tenure (mo) | Autopay | Balance | Status | Seats | Projects |
 |----|------|---------|-------|------|--------------|------|-------------|---------|---------|--------|-------|----------|
 | 20011 | Parker | Helix Systems | parker@helixsystems.io | 4411 | 0 | Team | 1.5 | OFF | $0 | CANCELED | 2 | 2 |
-| 20012 | Taylor | Brightpath | taylor@brightpath.io | 5522 | 0 | Team | 1.5 | OFF | $0 | CANCELED | 1 | 1 |
-| 20013 | Reese | Foundry Labs | reese@foundrylabs.io | 6633 | 0 | Team | 1.5 | OFF | $0 | CANCELED | 2 | 2 |
 
 **Table 2 — Suspension & Waiver History** *(data_retention_days = 30 for all accounts)*
 
 | ID | Suspension Date | Susp. Days | Last Waiver Date | Prev Waiver (12mo) | Waiver Result | Archetype |
 |----|----------------|------------|-----------------|-------------------|---------------|-----------|
 | 20011 | NULL | — | NULL | 0 | N/A | Churned — win-back demo |
-| 20012 | NULL | — | NULL | 0 | N/A | Churned — win-back demo |
-| 20013 | NULL | — | NULL | 0 | N/A | Churned — win-back demo |
 
 ---
 
@@ -137,7 +133,7 @@ root_agent              (agent.py)                   gemini-2.5-flash      ← U
   +-- T1_GetAccount        (direct tool: auth)
   +-- DA1_AccountAgent     (DA1_Account_Agent.py)    gemini-2.5-flash      ← upgraded (see note)
   +-- DA2_BillingAgent     (DA2_Billing_Agent.py)    gemini-2.5-flash      ← upgraded (see note)
-  +-- DA4_PlanAgent        (DA4_Plan_Agent.py)       gemini-2.5-flash-lite ← Shared Squad
+  +-- DA4_PlanAgent        (DA4_Plan_Agent.py)       gemini-2.5-flash      ← Shared Squad (upgraded)
   +-- SA1_RestoreSupervisor (SA1_Restore_Supervisor.py) gemini-2.5-flash   ← Supervisor
         +-- DA1_AccountAgent    (data safety check)            via AgentTool
         +-- DA2_BillingAgent    (payment, fee waiver)          via AgentTool
@@ -163,7 +159,7 @@ root_agent              (agent.py)                   gemini-2.5-flash      ← U
 | Domain | DA1_AccountAgent | gemini-2.5-flash | Account status, data retention check |
 | Domain | DA2_BillingAgent | gemini-2.5-flash | Payment, balance, fee waiver |
 | Squad | DA3_RestoreAgent | gemini-2.5-flash | Execute account restore + receipt only |
-| Squad (Shared) | DA4_PlanAgent | gemini-2.5-flash-lite | Plan upgrade/downgrade + receipt. Called by root_agent (active accounts) and SA1 (post-restore). T6 lives here only. |
+| Squad (Shared) | DA4_PlanAgent | gemini-2.5-flash | Plan upgrade/downgrade + receipt. Called by root_agent (active accounts) and SA1 (post-restore). T6 lives here only. |
 
 ---
 
@@ -407,7 +403,8 @@ data_safe=False. DA3 STATE 1 extracts this flag. TRANSITION GUARD branches on it
   a duration ("3 months", "6 months", etc.), passes it to T6. Otherwise passes None (permanent).
 - Called by root_agent (active account plan changes) AND by SA1 (post-restore, STATE 7).
 - T6 and T9 live here only — not in DA3.
-- Uses gemini-2.5-flash-lite (DA4 is not called in parallel with other DAs; no Part(text=None) bug).
+- Uses gemini-2.5-flash (upgraded from flash-lite — flash-lite drops the final response on
+  3-tool MODE E chains T9→T6→T8, same Part(text=None) bug as DA1/DA2).
 
 ### DB Tool Injection (functools.partial)
 ```python
@@ -517,10 +514,14 @@ Then start a **new Claude thread** (see prompt below)
 ### Phase 4 — New Claude thread: Validate
 24. Write `Agent Sim/test_conversation.py`
 25. Run Persona 1 (Alex 20001) — primary demo, happy path
-26. Run Persona 2 (Jordan 20002) — waiver FAIL
+26. Run Persona 2 (Jordan 20002) — waiver FAIL Rule A
 27. Run Persona 3 (Sam 20003) — data AT RISK
-28. Fix issues, re-run until all pass
-29. Git commit
+28. Run Persona 4 (Riley 20004) — waiver FAIL Rule C
+29. Run Persona 9 (Morgan 20005) — waiver FAIL Rule B
+30. Run Persona 10 (Quinn 20008) — clean downgrade (active account)
+31. Run Persona 11 (Jamie 20009) — waiver FAIL Rule A boundary (6.0mo exactly)
+32. Fix issues, re-run until all pass
+33. Git commit
 
 ### Phase 5a — Demo (adk web)
 30. `py z_reset_world.py` (from parent c:\Muru_Workspace)

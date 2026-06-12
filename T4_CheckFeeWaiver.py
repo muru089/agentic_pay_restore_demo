@@ -85,24 +85,25 @@ def T4_CheckFeeWaiver(conn, account_id):
                 ),
             }
 
-        # Build failure reason
+        # Build failure reason (customer-facing — no internal labels)
         failures = []
         if not rule_a:
             failures.append(
-                f"Rule A failed: account age is {tenure_months} months (must be > 6 months)."
+                f"your account is {tenure_months:.0f} months old, which does not meet the 6-month minimum"
             )
         if not rule_b:
-            failures.append("Rule B failed: AutoPay is not active.")
+            failures.append("AutoPay was not enabled on your account")
         if not rule_c:
+            days_since_waiver = (today - date.fromisoformat(last_waiver_date_str)).days
             failures.append(
-                f"Rule C failed: a waiver was already used on {last_waiver_date_str} (within 12 months)."
+                f"a waiver was applied {days_since_waiver} days ago, within the 12-month window"
             )
 
         return {
             "status":          "success",
             "waiver_granted":  False,
             "late_fee_amount": late_fee,
-            "reason":          " ".join(failures),
+            "reason":          ", and ".join(failures),
         }
 
     except sqlite3.Error as e:

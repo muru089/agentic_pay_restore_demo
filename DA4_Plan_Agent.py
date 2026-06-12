@@ -12,7 +12,8 @@ Two modes — read the incoming message and run the indicated mode:
                         SA1 uses this to present details and await customer confirmation.
     MODE E — EXECUTE:   Run T9 → T6 → T8. Customer has already confirmed. Point of no return.
 
-MODEL: gemini-2.5-flash-lite
+MODEL: gemini-2.5-flash (upgraded from flash-lite — flash-lite drops final response
+       on 3-tool chains T9→T6→T8 in MODE E, same Part(text=None) bug as DA1/DA2)
 
 TOOLS AVAILABLE:
     T9_ValidatePlanChange  -- Fetch new plan details + seat eligibility check.
@@ -69,7 +70,7 @@ t8_tool = FunctionTool(T8_SendReceipt)
 
 da4_plan_agent = Agent(
     name="DA4_PlanAgent",
-    model="gemini-2.5-flash-lite",
+    model="gemini-2.5-flash",
     tools=[t9_tool, t6_tool, t8_tool],
     instruction="""
 You are the Plan Change Specialist (Squad + Shared Agent) for the Pay Restore SaaS platform.

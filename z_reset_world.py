@@ -12,7 +12,7 @@ HOW TO RUN:
 
 TABLES CREATED:
     1. plan_catalog       -- 4 subscription tiers (Individual → Enterprise)
-    2. customer_accounts  -- 13 accounts (10 Active/Suspended + 3 Canceled)
+    2. customer_accounts  -- 11 accounts (10 Active/Suspended + 1 Canceled)
 
 IMPORTANT NOTES:
     - plan_name in customer_accounts must exactly match plan_name in plan_catalog.
@@ -196,18 +196,10 @@ def reset_world():
          'avery@stratos.io',    '3388', 1, susp_date(8),  None,         45,  35, 30, None),
 
         # -----------------------------------------------------------------------
-        # Group B — Canceled (20011–20013) — win-back demos
-        # All on Team plan, 1.5mo tenure, autopay OFF, $0 balance.
-        # card_expired=0 (account closed cleanly, card on file still valid).
+        # Group B — Canceled (20011) — win-back demo
         # -----------------------------------------------------------------------
         (20011, 'Parker', 'Helix Systems', 'Team',  1.5, 0, 0, 0.00, 'CANCELED',
          'parker@helixsystems.io', '4411', 0, None, None, 2, 2, 30, None),
-
-        (20012, 'Taylor', 'Brightpath',    'Team',  1.5, 0, 0, 0.00, 'CANCELED',
-         'taylor@brightpath.io',  '5522', 0, None, None, 1, 1, 30, None),
-
-        (20013, 'Reese',  'Foundry Labs',  'Team',  1.5, 0, 0, 0.00, 'CANCELED',
-         'reese@foundrylabs.io',  '6633', 0, None, None, 2, 2, 30, None),
     ]
 
     cursor.executemany(

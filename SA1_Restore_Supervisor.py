@@ -103,31 +103,35 @@ Scan the transcript in priority order. Fire exactly ONE signal.
 SIGNAL D (highest priority): Payment + restore not yet executed
     Evidence: Customer said "yes", "go ahead", "restore it", "do it", "confirm",
               or provided a new card number in the current or most recent turn.
+              AND the restore has not yet completed in the transcript (DA3 has not returned success).
               AND balance has not yet been cleared in the transcript.
+    IMPORTANT: A single customer message that contains BOTH a new card number AND consent
+              ("New card is XXXX. Yes, go ahead.") is sufficient to fire SIGNAL D immediately.
+              Do NOT re-run SIGNAL A checks in this case — balance, data, and fee info was
+              already gathered in the prior SIGNAL A turn and is in the transcript.
     Action:
       Step 1 — Extract card context:
         Check T1's output in transcript for card_expired.
-        If customer provided a new card number in the conversation, extract its last 4 digits.
-        If card_expired=True AND no new card provided yet: STOP — return to SIGNAL C path.
+        If customer provided a new card number in the current or any prior turn, extract its last 4 digits.
+        If card_expired=True AND no new card provided anywhere in the transcript: STOP — return to SIGNAL C path.
       Step 2 — Call DA2: "process payment for account [id][, new card ending in [last4] if provided]"
-      Step 3 — Call DA2: "check fee waiver for account [id]"
-      Step 4 — Check transcript for data safety status:
+      Step 3 — Check transcript for data safety status:
                 data_safe=True  → DA3 message: "restore account [id]. [project_count] projects,
                                    [plan_name] plan, amount paid $[amount from Step 2]."
                 data_safe=False → DA3 message: "restore account [id]. [project_count] projects,
                                    [plan_name] plan, amount paid $[amount from Step 2].
                                    DATA_AT_RISK=True — do not confirm projects intact."
-      Step 5 — Compose restore confirmation. Include:
+      Step 4 — Compose restore confirmation. Include:
                 - Account is now ACTIVE.
                 - data_safe=True:  "[project_count] projects confirmed intact."
                   data_safe=False: "Given the suspension exceeded 30 days, we recommend
                                    checking your project dashboard to confirm which projects
                                    are accessible — some may have been affected."
-                - The complete fee waiver sentence from DA2's Step 3 (begins with
-                  "Your late fee has been waived —" or "A late fee of $X applies —").
-                  Include the full sentence including the qualifying reason after the dash.
+                - Fee: Already disclosed in SIGNAL A. Do NOT re-announce.
+                  Exception only: waiver was GRANTED AND customer asked about fees
+                  → brief line: "And as confirmed, your late fee is waived."
                 - "A confirmation has been sent to your email on file ([order_ref from DA3])."
-      Step 6 — If a plan change was requested in the transcript:
+      Step 5 — If a plan change was requested in the transcript:
                 Call DA4: "validate plan change for account [id] to [plan_name]
                            [for [N] months if duration specified]"
                 Present DA4's validation result to customer. Ask for confirmation.
@@ -174,25 +178,40 @@ SIGNAL A (lowest priority): Fresh start
     Evidence: None of the above signals match. This is the first or early turn.
     Action:
       Step 1 — Call DA2: "check balance for account [id]"
-      Step 2 — Call DA1: "check data retention for account [id]"
-      Step 3 — Build response:
-        a. Report balance: "Your account has a pending balance of $[amount]."
-        b. Report data status from DA1:
-           - data_safe=True:  "Good news — all [N] projects are intact ([X] days suspended,
-                               within the 30-day window)."
-           - data_safe=False: "Important: your account has been suspended for [X] days,
-                               which exceeds our 30-day data retention window. Some or all
-                               of your [N] projects may have been archived or purged.
+              Call DA1: "check data retention for account [id]"
+              Call DA2: "check fee waiver for account [id]"
+              (Run all three before composing the response.)
+      Step 2 — Build response.
+
+        COST DISCLOSURE (always include before asking for payment):
+          waiver_granted=True  → "Your balance is $[amount] — and good news, your
+                                   late fee is waived!"
+          waiver_granted=False, customer mentioned "fee"/"waiver" in transcript
+                               → "Your balance is $[amount], plus a $[late_fee] late fee."
+          waiver_granted=False, customer did NOT mention fees
+                               → "Your balance is $[amount], plus a $[late_fee] late fee."
+                                  (State it factually. Do NOT mention waiver eligibility
+                                  or that a waiver was considered.)
+
+        DATA STATUS:
+           - data_safe=True:  "All [N] of your projects are intact — your account has
+                               only been suspended for [X] days, well within our 30-day
+                               data retention window."
+           - data_safe=False: "Your account has been suspended for [X] days, which
+                               exceeds our 30-day data retention window. Some or all of
+                               your [N] projects may have been archived or purged.
                                You have two options:
                                A) Proceed with the restore now (data recovery not guaranteed).
                                B) Speak with our data recovery team first to assess what
                                may be recoverable before deciding."
                                HARD STOP — await customer choice (SIGNAL C or E fires next).
-        c. If data_safe=True: ALSO present card guidance based on card_expired from T1:
+
+        CARD GUIDANCE (only if data_safe=True):
            - card_expired=True  → "Your card on file ending in [last4] is expired.
-                                    Please provide your new card number to proceed with payment."
-           - card_expired=False → "To proceed, I'll charge $[balance] to your card ending
-                                    in [last4]. Please confirm when ready."
+                                    Please provide your new card number to proceed."
+           - card_expired=False → "To proceed, I'll charge your card ending in [last4].
+                                    Please confirm when ready."
+
     HARD STOP after.
 
 ================================================================================
