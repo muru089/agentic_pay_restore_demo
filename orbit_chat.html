@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Orbit AI Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f7f8fc;
+    color: #1a1a2e;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Nav */
+  nav {
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    height: 56px;
+    flex-shrink: 0;
+    gap: 16px;
+  }
+  .nav-logo { font-size: 20px; font-weight: 700; color: #5b4cf5; text-decoration: none; }
+  .nav-logo span { color: #1a1a2e; }
+  .nav-title { font-size: 14px; color: #6b7280; border-left: 1px solid #e5e7eb; padding-left: 16px; }
+  .nav-status { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #6b7280; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
+  .status-dot.connecting { background: #f59e0b; animation: pulse 1s infinite; }
+  .status-dot.error { background: #ef4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Chat layout */
+  .chat-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 16px;
+    min-height: 0;
+  }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Bubbles */
+  .msg { display: flex; gap: 10px; align-items: flex-end; }
+  .msg.user { flex-direction: row-reverse; }
+
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0;
+  }
+  .avatar.agent { background: #5b4cf5; color: #fff; }
+  .avatar.user  { background: #e5e7eb; color: #374151; }
+
+  .bubble {
+    max-width: 78%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1a1a2e;
+  }
+  .msg.agent .bubble {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .msg.user .bubble {
+    background: #5b4cf5;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+
+  /* Typing indicator */
+  .typing { display: flex; gap: 4px; align-items: center; padding: 14px 16px; }
+  .typing span {
+    width: 7px; height: 7px; border-radius: 50%; background: #9ca3af;
+    animation: bounce 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+
+  /* Card form (inline — appears inside agent bubble) */
+  .card-form {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 12px;
+    box-shadow: 0 2px 12px rgba(91,76,245,0.08);
+    max-width: 360px;
+  }
+  .card-form h4 {
+    font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #1a1a2e;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-form h4::before { content: "🔒"; font-size: 14px; }
+  .field { margin-bottom: 12px; }
+  .field label { font-size: 12px; font-weight: 600; color: #6b7280; display: block; margin-bottom: 4px; }
+  .field input {
+    width: 100%; border: 1.5px solid #e5e7eb; border-radius: 8px;
+    padding: 10px 12px; font-size: 14px; font-family: monospace;
+    outline: none; transition: border 0.15s;
+  }
+  .field input:focus { border-color: #5b4cf5; }
+  .field input.error { border-color: #ef4444; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field-error { font-size: 11px; color: #ef4444; margin-top: 3px; display: none; }
+  .field-error.show { display: block; }
+  .card-submit {
+    width: 100%; background: #5b4cf5; color: #fff; border: none;
+    padding: 11px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-top: 4px; transition: background 0.15s;
+  }
+  .card-submit:hover { background: #4a3de0; }
+  .card-submit:disabled { background: #c4b5fd; cursor: not-allowed; }
+
+  /* Payment success */
+  .payment-success {
+    display: flex; align-items: center; gap: 8px;
+    background: #f0fdf4; border: 1px solid #bbf7d0;
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 14px; color: #065f46; font-weight: 600;
+    margin-top: 12px;
+  }
+
+  /* Input bar */
+  .input-bar {
+    background: #fff;
+    border-top: 1px solid #e5e7eb;
+    padding: 16px;
+    flex-shrink: 0;
+  }
+  .input-row {
+    display: flex; gap: 10px; align-items: flex-end;
+    max-width: 760px; margin: 0 auto;
+  }
+  textarea {
+    flex: 1; border: 1.5px solid #e5e7eb; border-radius: 12px;
+    padding: 10px 14px; font-size: 14px; font-family: inherit;
+    resize: none; outline: none; line-height: 1.5;
+    max-height: 120px; transition: border 0.15s;
+  }
+  textarea:focus { border-color: #5b4cf5; }
+  textarea:disabled { background: #f9fafb; }
+  button#sendBtn {
+    background: #5b4cf5; color: #fff; border: none;
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: background 0.15s;
+  }
+  button#sendBtn:hover:not(:disabled) { background: #4a3de0; }
+  button#sendBtn:disabled { background: #c4b5fd; cursor: not-allowed; }
+  button#sendBtn svg { width: 18px; height: 18px; }
+
+  .input-hint { text-align: center; font-size: 11px; color: #9ca3af; margin-top: 8px; }
+
+  /* Welcome */
+  .welcome {
+    text-align: center; padding: 40px 20px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .welcome-icon { font-size: 40px; }
+  .welcome h2 { font-size: 20px; font-weight: 700; }
+  .welcome p { font-size: 14px; color: #6b7280; max-width: 380px; line-height: 1.6; }
+  .welcome-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
+  .chip {
+    background: #ede9fe; color: #5b4cf5; font-size: 13px; font-weight: 500;
+    padding: 6px 14px; border-radius: 20px; cursor: pointer; border: none;
+    transition: background 0.15s;
+  }
+  .chip:hover { background: #ddd6fe; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="knowledge_base/html/index.html">Orbit<span>.</span></a>
+  <span class="nav-title">AI Support Assistant</span>
+  <div class="nav-status">
+    <div class="status-dot connecting" id="statusDot"></div>
+    <span id="statusText">Connecting...</span>
+  </div>
+</nav>
+
+<div class="chat-wrap">
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">👋</div>
+      <h2>Hi, I'm Orbit AI</h2>
+      <p>I can help with your account, billing, plan changes, or any questions about Orbit. What can I help you with today?</p>
+      <div class="welcome-chips">
+        <button class="chip" onclick="sendChip(this)">My account is suspended</button>
+        <button class="chip" onclick="sendChip(this)">What are the plan options?</button>
+        <button class="chip" onclick="sendChip(this)">Will my data be safe?</button>
+        <button class="chip" onclick="sendChip(this)">Fee waiver eligibility</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-bar">
+    <div class="input-row">
+      <textarea id="userInput" rows="1" placeholder="Type a message…" disabled></textarea>
+      <button id="sendBtn" disabled onclick="sendMessage()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+    <p class="input-hint">Orbit AI · Powered by Google ADK &nbsp;·&nbsp; Responses may not cover every scenario</p>
+  </div>
+</div>
+
+<script>
+const APP_NAME  = 'pay_restore_demo';
+const BASE_URL  = 'http://127.0.0.1:8000';
+const USER_ID   = 'demo-user-' + Math.random().toString(36).slice(2, 8);
+
+let sessionId = null;
+let isWaiting = false;
+let pendingCardResolve = null;
+
+// ── Session init ──────────────────────────────────────────────────────────
+
+async function initSession() {
+  try {
+    const res = await fetch(`${BASE_URL}/apps/${APP_NAME}/users/${USER_ID}/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const session = await res.json();
+    sessionId = session.id;
+    setStatus('online', 'Online');
+    document.getElementById('userInput').disabled = false;
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('userInput').focus();
+  } catch (e) {
+    setStatus('error', 'Cannot connect — is adk web running?');
+    console.error('Session init failed:', e);
+  }
+}
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot' + (state === 'online' ? '' : state === 'error' ? ' error' : ' connecting');
+  document.getElementById('statusText').textContent = text;
+}
+
+// ── Message send ──────────────────────────────────────────────────────────
+
+async function sendMessage(overrideText) {
+  const input = document.getElementById('userInput');
+  const text  = overrideText ?? input.value.trim();
+  if (!text || isWaiting || !sessionId) return;
+
+  hideWelcome();
+  addBubble('user', text);
+  if (!overrideText) input.value = '';
+  autoResize(input);
+
+  isWaiting = true;
+  setInput(false);
+  const typingId = addTyping();
+
+  try {
+    const agentText = await runSSE(text);
+    removeTyping(typingId);
+
+    if (agentText.includes('__CARD_FORM__')) {
+      const before = agentText.split('__CARD_FORM__')[0].trim();
+      const after  = agentText.split('__CARD_FORM__')[1]?.trim() || '';
+      if (before) addBubble('agent', before);
+      const cardResult = await showCardForm();
+      // Card form resolved — send result back to agent as next message
+      isWaiting = false;
+      setInput(true);
+      await sendMessage(JSON.stringify(cardResult));
+      return;
+    }
+
+    addBubble('agent', agentText);
+  } catch (e) {
+    removeTyping(typingId);
+    addBubble('agent', "I'm having trouble connecting right now. Please try again in a moment.");
+    console.error('SSE error:', e);
+  }
+
+  isWaiting = false;
+  setInput(true);
+}
+
+async function runSSE(text) {
+  const res = await fetch(`${BASE_URL}/run_sse`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      app_name: APP_NAME,
+      user_id:  USER_ID,
+      session_id: sessionId,
+      new_message: { role: 'user', parts: [{ text }] }
+    })
+  });
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let lastAgentText = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const raw = line.slice(5).trim();
+      if (!raw) continue;
+      try {
+        const event = JSON.parse(raw);
+        if (event.content && event.content.parts && event.author !== 'user') {
+          for (const part of event.content.parts) {
+            if (part.text) lastAgentText = part.text;
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  return lastAgentText || "I didn't catch a response — please try again.";
+}
+
+// ── Card form (inline) ────────────────────────────────────────────────────
+
+function showCardForm() {
+  return new Promise((resolve) => {
+    pendingCardResolve = resolve;
+
+    const formHtml = `
+      <div class="card-form" id="cardForm">
+        <h4>Secure Card Details</h4>
+        <div class="field">
+          <label>Card Number</label>
+          <input type="text" id="cfNum" placeholder="XXXX XXXX XXXX XXXX" maxlength="19"
+                 oninput="formatCardNum(this)" />
+          <div class="field-error" id="cfNumErr">Please enter a valid 16-digit card number.</div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Expiry (MM/YY)</label>
+            <input type="text" id="cfExp" placeholder="MM/YY" maxlength="5"
+                   oninput="formatExpiry(this)" />
+            <div class="field-error" id="cfExpErr">Invalid or expired date.</div>
+          </div>
+          <div class="field">
+            <label>CVV</label>
+            <input type="text" id="cfCvv" placeholder="123" maxlength="3"
+                   oninput="this.value=this.value.replace(/\\D/g,'')" />
+            <div class="field-error" id="cfCvvErr">3 digits required.</div>
+          </div>
+        </div>
+        <button class="card-submit" onclick="submitCard()">Pay Securely</button>
+      </div>`;
+
+    const wrap = document.createElement('div');
+    wrap.innerHTML = formHtml;
+    const msgWrap = addBubbleNode('agent', '', wrap.firstElementChild);
+    scrollBottom();
+  });
+}
+
+function formatCardNum(el) {
+  let v = el.value.replace(/\D/g, '').slice(0, 16);
+  el.value = v.replace(/(.{4})/g, '$1 ').trim();
+}
+
+function formatExpiry(el) {
+  let v = el.value.replace(/\D/g, '').slice(0, 4);
+  if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
+  el.value = v;
+}
+
+function luhn(num) {
+  let sum = 0, alt = false;
+  for (let i = num.length - 1; i >= 0; i--) {
+    let d = parseInt(num[i]);
+    if (alt) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+    alt = !alt;
+  }
+  return sum % 10 === 0;
+}
+
+function validExpiry(val) {
+  const parts = val.split('/');
+  if (parts.length !== 2) return false;
+  const mm = parseInt(parts[0]), yy = parseInt(parts[1]);
+  if (isNaN(mm) || isNaN(yy)) return false;
+  const now = new Date();
+  const exp = new Date(2000 + yy, mm - 1, 1);
+  return exp > now;
+}
+
+function submitCard() {
+  const numRaw = document.getElementById('cfNum').value.replace(/\s/g, '');
+  const exp    = document.getElementById('cfExp').value.trim();
+  const cvv    = document.getElementById('cfCvv').value.trim();
+
+  let valid = true;
+
+  const numOk = numRaw.length === 16 && luhn(numRaw);
+  showFieldError('cfNum', 'cfNumErr', !numOk);
+  if (!numOk) valid = false;
+
+  const expOk = validExpiry(exp);
+  showFieldError('cfExp', 'cfExpErr', !expOk);
+  if (!expOk) valid = false;
+
+  const cvvOk = /^\d{3}$/.test(cvv);
+  showFieldError('cfCvv', 'cfCvvErr', !cvvOk);
+  if (!cvvOk) valid = false;
+
+  if (!valid) return;
+
+  const last4 = numRaw.slice(-4);
+
+  // Swap form for success message
+  const form = document.getElementById('cardForm');
+  const success = document.createElement('div');
+  success.className = 'payment-success';
+  success.innerHTML = `<span>✓</span> Payment Processed &nbsp;·&nbsp; Card ending ${last4}`;
+  form.replaceWith(success);
+  scrollBottom();
+
+  if (pendingCardResolve) {
+    pendingCardResolve({ status: 'success', card_last4: last4 });
+    pendingCardResolve = null;
+  }
+}
+
+function showFieldError(inputId, errId, show) {
+  document.getElementById(inputId).classList.toggle('error', show);
+  document.getElementById(errId).classList.toggle('show', show);
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────────────
+
+function addBubble(role, text) {
+  addBubbleNode(role, text, null);
+}
+
+function addBubbleNode(role, text, extraNode) {
+  const msgs = document.getElementById('messages');
+  const row  = document.createElement('div');
+  row.className = `msg ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = `avatar ${role}`;
+  avatar.textContent = role === 'agent' ? 'AI' : 'You';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  if (text) bubble.textContent = text;
+  if (extraNode) bubble.appendChild(extraNode);
+
+  if (role === 'agent') {
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+  } else {
+    row.appendChild(bubble);
+    row.appendChild(avatar);
+  }
+
+  msgs.appendChild(row);
+  scrollBottom();
+  return row;
+}
+
+let typingCounter = 0;
+function addTyping() {
+  const id = 'typing-' + (++typingCounter);
+  const msgs = document.getElementById('messages');
+  const row  = document.createElement('div');
+  row.className = 'msg agent';
+  row.id = id;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar agent';
+  avatar.textContent = 'AI';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  msgs.appendChild(row);
+  scrollBottom();
+  return id;
+}
+
+function removeTyping(id) {
+  document.getElementById(id)?.remove();
+}
+
+function hideWelcome() {
+  document.getElementById('welcome')?.remove();
+}
+
+function scrollBottom() {
+  const msgs = document.getElementById('messages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function setInput(enabled) {
+  document.getElementById('userInput').disabled = !enabled;
+  document.getElementById('sendBtn').disabled   = !enabled;
+  if (enabled) document.getElementById('userInput').focus();
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function sendChip(btn) {
+  sendMessage(btn.textContent);
+}
+
+// Enter to send (Shift+Enter = newline)
+document.getElementById('userInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+document.getElementById('userInput').addEventListener('input', function() { autoResize(this); });
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+initSession();
+</script>
+</body>
+</html>

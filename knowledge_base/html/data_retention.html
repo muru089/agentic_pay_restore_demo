@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Data &amp; Storage — Orbit Help Center</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8fc; color: #1a1a2e; }
+  nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 40px; display: flex; align-items: center; height: 64px; gap: 32px; }
+  .nav-logo { font-size: 22px; font-weight: 700; color: #5b4cf5; letter-spacing: -0.5px; text-decoration: none; }
+  .nav-logo span { color: #1a1a2e; }
+  .nav-links a { font-size: 14px; color: #555; text-decoration: none; margin-right: 24px; }
+  .nav-links a:hover { color: #5b4cf5; }
+  .nav-right { margin-left: auto; }
+  .nav-right a { background: #5b4cf5; color: #fff; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 8px; text-decoration: none; }
+  .breadcrumb { max-width: 860px; margin: 24px auto 0; padding: 0 32px; font-size: 13px; color: #9ca3af; }
+  .breadcrumb a { color: #5b4cf5; text-decoration: none; }
+  .page { max-width: 860px; margin: 0 auto; padding: 32px 32px 80px; }
+  .page-header { margin-bottom: 40px; border-bottom: 1px solid #e5e7eb; padding-bottom: 24px; }
+  .page-header h1 { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+  .page-header p { font-size: 16px; color: #6b7280; }
+  h2 { font-size: 20px; font-weight: 700; margin: 36px 0 16px; }
+  p { font-size: 15px; line-height: 1.7; color: #374151; margin-bottom: 16px; }
+  ul { margin: 0 0 16px 20px; }
+  ul li { font-size: 15px; line-height: 1.8; color: #374151; }
+
+  .warning { border-left: 4px solid #ef4444; background: #fef2f2; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .warning p { margin: 0; font-size: 14px; color: #374151; }
+  .callout { border-left: 4px solid #5b4cf5; background: #ede9fe; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .callout p { margin: 0; font-size: 14px; color: #374151; }
+
+  /* Timeline */
+  .timeline { position: relative; margin: 24px 0 32px; padding-left: 28px; border-left: 3px solid #e5e7eb; }
+  .tl-item { margin-bottom: 24px; position: relative; }
+  .tl-dot { position: absolute; left: -37px; top: 4px; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #5b4cf5; background: #fff; }
+  .tl-dot.red { border-color: #ef4444; }
+  .tl-label { font-size: 12px; font-weight: 700; color: #5b4cf5; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tl-label.red { color: #ef4444; }
+  .tl-body { font-size: 14px; color: #374151; line-height: 1.6; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
+  th { background: #f3f4f6; text-align: left; padding: 12px 16px; font-weight: 600; }
+  td { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #374151; }
+
+  .faq-item { border-bottom: 1px solid #e5e7eb; padding: 20px 0; }
+  .faq-item h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .faq-item p { font-size: 14px; color: #6b7280; margin-bottom: 0; }
+
+  .related { background: #ede9fe; border-radius: 12px; padding: 24px; margin-top: 48px; }
+  .related h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: #5b4cf5; }
+  .related a { display: block; font-size: 14px; color: #1a1a2e; text-decoration: none; padding: 4px 0; }
+  .related a:hover { color: #5b4cf5; text-decoration: underline; }
+
+  footer { background: #1a1a2e; color: #9ca3af; text-align: center; padding: 32px; font-size: 13px; }
+  footer a { color: #9ca3af; text-decoration: none; margin: 0 12px; }
+  .footer-logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">Orbit<span>.</span></a>
+  <div class="nav-links">
+    <a href="#">Product</a>
+    <a href="#">Pricing</a>
+    <a href="index.html">Help Center</a>
+  </div>
+  <div class="nav-right"><a href="#">Sign In</a></div>
+</nav>
+
+<div class="breadcrumb">
+  <a href="index.html">Help Center</a> › Data &amp; Storage
+</div>
+
+<div class="page">
+  <div class="page-header">
+    <h1>Data &amp; Storage</h1>
+    <p>How long your projects and files are retained after suspension, what happens at 30 days, and your options if data is at risk.</p>
+  </div>
+
+  <h2>Data Retention During Suspension</h2>
+  <p>When an Orbit account is suspended, your projects, tasks, files, and settings are preserved for <strong>30 days</strong> from the date of suspension. This retention window is the same for all plan tiers.</p>
+  <p>Restoring your account within 30 days guarantees that all data is accessible exactly as it was before suspension — no projects will be missing, and no files will be affected.</p>
+
+  <div class="warning">
+    <p><strong>After 30 days:</strong> Projects may begin to be archived or permanently deleted. Orbit cannot guarantee full data recovery for accounts suspended for more than 30 days. Restore promptly to protect your data.</p>
+  </div>
+
+  <h2>Suspension Timeline</h2>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-label">Day 0 — Suspension date</div>
+      <div class="tl-body">Payment fails. Account suspended. All team members lose access. 30-day retention window begins.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-label">Days 1–29 — Data safe</div>
+      <div class="tl-body">All projects, tasks, files, and settings are fully preserved. Restoring at any point in this window guarantees complete data integrity.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot red"></div>
+      <div class="tl-label red">Day 30+ — Data at risk</div>
+      <div class="tl-body">Projects may be archived or permanently deleted. Orbit initiates automated cleanup after the 30-day window. Recovery is not guaranteed. Contact our data recovery team before attempting a restore.</div>
+    </div>
+  </div>
+
+  <h2>Storage Limits by Plan</h2>
+  <p>Each plan includes a fixed storage allocation for file attachments, assets, and exports. Project and task data (text, structure, assignments) does not count toward storage. Only file attachments and media uploads consume your storage quota.</p>
+
+  <table>
+    <thead>
+      <tr><th>Plan</th><th>File Storage</th><th>Max Seats</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Individual</td><td>10 GB</td><td>1</td></tr>
+      <tr><td>Team</td><td>100 GB</td><td>10</td></tr>
+      <tr><td>Business</td><td>500 GB</td><td>30</td></tr>
+      <tr><td>Enterprise</td><td>2 TB (2,000 GB)</td><td>100</td></tr>
+    </tbody>
+  </table>
+
+  <p>If you upgrade your plan, the additional storage is available immediately. If you downgrade, the reduction applies at the start of the next billing cycle. You will receive a warning if your stored files exceed the lower plan's limit after a downgrade.</p>
+
+  <h2>What to Do If Your Data Is at Risk</h2>
+  <p>If your account has been suspended for more than 30 days, take the following steps:</p>
+  <ul>
+    <li><strong>Do not restore immediately.</strong> Restoring without knowing what is recoverable will not bring back deleted data.</li>
+    <li><strong>Contact our data recovery team first.</strong> They can assess what projects and files are still accessible before you commit to a restore.</li>
+    <li><strong>Discuss your options.</strong> In some cases, archived projects may be recoverable for a limited time. Our team will advise you honestly on what is and is not possible.</li>
+    <li><strong>Then decide whether to restore.</strong> Once you have a clear picture of what is recoverable, you can make an informed decision about restoring the account.</li>
+  </ul>
+
+  <div class="callout">
+    <p><strong>Our virtual assistant will flag this for you.</strong> When you initiate an account restore, the assistant automatically checks how long the account has been suspended. If the 30-day window has passed, it will inform you and offer to connect you with the data recovery team before proceeding.</p>
+  </div>
+
+  <h2>Data Exports</h2>
+  <p>Active accounts can export project data at any time from <strong>Settings → Data &amp; Privacy → Export</strong>. Exports include all task data, comments, and file attachments in a compressed archive (ZIP). We recommend regular exports as a backup, particularly for accounts with large project libraries.</p>
+  <p>Exports are not available from a suspended account. If your account is at risk of suspension, export your data before the suspension date.</p>
+
+  <h2>Frequently Asked Questions</h2>
+
+  <div class="faq-item">
+    <h3>Is the 30-day retention window the same for all plans?</h3>
+    <p>Yes. All four Orbit plans — Individual, Team, Business, and Enterprise — have the same 30-day data retention window following suspension. The window is not extended for higher-tier plans.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>My account has been suspended for exactly 30 days. Is my data safe?</h3>
+    <p>The 30-day window means data is retained for accounts suspended for up to 30 days. An account suspended for exactly 30 days is at the boundary — the data may still be intact, but we recommend contacting our support team to confirm before restoring, rather than assuming it is safe.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>Can Orbit recover deleted projects from a canceled account?</h3>
+    <p>No. Once an account is canceled and the data deletion period has passed, project data cannot be recovered. If you are considering canceling, export your data first.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>What counts toward my storage quota?</h3>
+    <p>File attachments and media uploads count toward storage. Project structure, tasks, comments, and settings do not. You can check your current usage from Settings → Storage.</p>
+  </div>
+
+  <div class="related">
+    <h3>Related articles</h3>
+    <a href="suspension_reactivation.html">Suspension &amp; Reactivation — how to restore your account</a>
+    <a href="billing_payment.html">Billing &amp; Payment — how to avoid suspension</a>
+    <a href="cancellation.html">Cancellation &amp; Offboarding — data export before you leave</a>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">Orbit.</div>
+  <div>
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms of Service</a>
+    <a href="#">Status</a>
+    <a href="#">Contact Support</a>
+  </div>
+  <p style="margin-top:16px;">© 2026 Orbit Technologies, Inc. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

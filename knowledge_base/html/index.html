@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Orbit Help Center</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8fc; color: #1a1a2e; }
+
+  /* Nav */
+  nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 40px; display: flex; align-items: center; height: 64px; gap: 32px; }
+  .nav-logo { font-size: 22px; font-weight: 700; color: #5b4cf5; letter-spacing: -0.5px; text-decoration: none; }
+  .nav-logo span { color: #1a1a2e; }
+  .nav-links a { font-size: 14px; color: #555; text-decoration: none; margin-right: 24px; }
+  .nav-links a:hover { color: #5b4cf5; }
+  .nav-right { margin-left: auto; }
+  .nav-right { display: flex; gap: 10px; align-items: center; }
+  .nav-right a { background: #5b4cf5; color: #fff; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 8px; text-decoration: none; }
+  .nav-ai-btn { background: #fff; color: #5b4cf5; border: 1.5px solid #5b4cf5; font-size: 14px; font-weight: 600; padding: 7px 18px; border-radius: 8px; text-decoration: none; display: flex; align-items: center; gap: 6px; }
+  .nav-ai-btn:hover { background: #ede9fe; }
+
+  /* Hero */
+  .hero { background: linear-gradient(135deg, #5b4cf5 0%, #7c6af7 100%); color: #fff; text-align: center; padding: 80px 40px 100px; }
+  .hero h1 { font-size: 40px; font-weight: 700; margin-bottom: 16px; }
+  .hero p { font-size: 18px; opacity: 0.85; margin-bottom: 32px; }
+  .search-bar { display: flex; max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.12); }
+  .search-bar input { flex: 1; border: none; outline: none; padding: 16px 20px; font-size: 15px; color: #1a1a2e; }
+  .search-bar button { background: #5b4cf5; color: #fff; border: none; padding: 16px 24px; font-size: 15px; font-weight: 600; cursor: pointer; }
+
+  /* Topics */
+  .topics { max-width: 1080px; margin: -40px auto 0; padding: 0 32px 80px; }
+  .topics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .topic-card { background: #fff; border-radius: 14px; padding: 28px 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); text-decoration: none; color: inherit; transition: box-shadow 0.15s, transform 0.15s; border: 1px solid #ececf3; }
+  .topic-card:hover { box-shadow: 0 6px 24px rgba(91,76,245,0.12); transform: translateY(-2px); }
+  .topic-icon { font-size: 28px; margin-bottom: 14px; }
+  .topic-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #1a1a2e; }
+  .topic-card p { font-size: 14px; color: #6b7280; line-height: 1.6; }
+  .topic-card .articles { font-size: 12px; color: #5b4cf5; font-weight: 600; margin-top: 14px; }
+
+  /* Popular */
+  .popular { max-width: 1080px; margin: 0 auto; padding: 0 32px 80px; }
+  .popular h2 { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
+  .popular-list { list-style: none; }
+  .popular-list li { padding: 14px 0; border-bottom: 1px solid #e5e7eb; }
+  .popular-list li a { font-size: 15px; color: #5b4cf5; text-decoration: none; }
+  .popular-list li a:hover { text-decoration: underline; }
+  .popular-list li span { font-size: 12px; color: #9ca3af; margin-left: 8px; }
+
+  /* Footer */
+  footer { background: #1a1a2e; color: #9ca3af; text-align: center; padding: 32px; font-size: 13px; }
+  footer a { color: #9ca3af; text-decoration: none; margin: 0 12px; }
+  footer a:hover { color: #fff; }
+  .footer-logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">Orbit<span>.</span></a>
+  <div class="nav-links">
+    <a href="#">Product</a>
+    <a href="#">Pricing</a>
+    <a href="index.html">Help Center</a>
+  </div>
+  <div class="nav-right">
+    <a class="nav-ai-btn" href="../../orbit_chat.html" target="_blank">✦ Ask Orbit AI</a>
+    <a href="#">Sign In</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <h1>How can we help?</h1>
+  <p>Search our knowledge base or browse topics below.</p>
+  <div class="search-bar">
+    <input type="text" placeholder="Search for answers…" />
+    <button>Search</button>
+  </div>
+</div>
+
+<div class="topics">
+  <div class="topics-grid">
+
+    <a class="topic-card" href="plans_pricing.html">
+      <div class="topic-icon">💼</div>
+      <h3>Plans &amp; Pricing</h3>
+      <p>Compare plans, understand seat limits and storage, and learn how pricing works.</p>
+      <div class="articles">6 articles</div>
+    </a>
+
+    <a class="topic-card" href="billing_payment.html">
+      <div class="topic-icon">💳</div>
+      <h3>Billing &amp; Payment</h3>
+      <p>AutoPay, late fees, fee waiver eligibility, invoices, and updating your payment method.</p>
+      <div class="articles">8 articles</div>
+    </a>
+
+    <a class="topic-card" href="suspension_reactivation.html">
+      <div class="topic-icon">🔒</div>
+      <h3>Suspension &amp; Reactivation</h3>
+      <p>Why accounts get suspended, how to restore service, and what happens to your data.</p>
+      <div class="articles">5 articles</div>
+    </a>
+
+    <a class="topic-card" href="data_retention.html">
+      <div class="topic-icon">🗂️</div>
+      <h3>Data &amp; Storage</h3>
+      <p>How long your projects and files are retained after suspension, and recovery options.</p>
+      <div class="articles">4 articles</div>
+    </a>
+
+    <a class="topic-card" href="upgrades_downgrades.html">
+      <div class="topic-icon">⬆️</div>
+      <h3>Upgrades &amp; Downgrades</h3>
+      <p>Switching plans, seat limits, storage changes, effective dates, and temporary upgrades.</p>
+      <div class="articles">6 articles</div>
+    </a>
+
+    <a class="topic-card" href="cancellation.html">
+      <div class="topic-icon">🚪</div>
+      <h3>Cancellation &amp; Offboarding</h3>
+      <p>How to cancel your account, data export options, and what happens after cancellation.</p>
+      <div class="articles">4 articles</div>
+    </a>
+
+  </div>
+</div>
+
+<div class="popular">
+  <h2>Popular articles</h2>
+  <ul class="popular-list">
+    <li><a href="suspension_reactivation.html">How do I reactivate a suspended account?</a> <span>Suspension &amp; Reactivation</span></li>
+    <li><a href="billing_payment.html">Am I eligible for a late fee waiver?</a> <span>Billing &amp; Payment</span></li>
+    <li><a href="data_retention.html">Will my projects be deleted if my account is suspended?</a> <span>Data &amp; Storage</span></li>
+    <li><a href="plans_pricing.html">What's included in the Business plan?</a> <span>Plans &amp; Pricing</span></li>
+    <li><a href="upgrades_downgrades.html">Can I upgrade for just a few months and then revert?</a> <span>Upgrades &amp; Downgrades</span></li>
+    <li><a href="billing_payment.html">How do I update my credit card on file?</a> <span>Billing &amp; Payment</span></li>
+    <li><a href="cancellation.html">Can I reactivate a canceled account?</a> <span>Cancellation &amp; Offboarding</span></li>
+  </ul>
+</div>
+
+<footer>
+  <div class="footer-logo">Orbit.</div>
+  <div>
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms of Service</a>
+    <a href="#">Status</a>
+    <a href="#">Contact Support</a>
+  </div>
+  <p style="margin-top:16px;">© 2026 Orbit Technologies, Inc. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

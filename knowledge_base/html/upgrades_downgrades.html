@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Upgrades &amp; Downgrades — Orbit Help Center</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8fc; color: #1a1a2e; }
+  nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 40px; display: flex; align-items: center; height: 64px; gap: 32px; }
+  .nav-logo { font-size: 22px; font-weight: 700; color: #5b4cf5; letter-spacing: -0.5px; text-decoration: none; }
+  .nav-logo span { color: #1a1a2e; }
+  .nav-links a { font-size: 14px; color: #555; text-decoration: none; margin-right: 24px; }
+  .nav-links a:hover { color: #5b4cf5; }
+  .nav-right { margin-left: auto; }
+  .nav-right a { background: #5b4cf5; color: #fff; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 8px; text-decoration: none; }
+  .breadcrumb { max-width: 860px; margin: 24px auto 0; padding: 0 32px; font-size: 13px; color: #9ca3af; }
+  .breadcrumb a { color: #5b4cf5; text-decoration: none; }
+  .page { max-width: 860px; margin: 0 auto; padding: 32px 32px 80px; }
+  .page-header { margin-bottom: 40px; border-bottom: 1px solid #e5e7eb; padding-bottom: 24px; }
+  .page-header h1 { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+  .page-header p { font-size: 16px; color: #6b7280; }
+  h2 { font-size: 20px; font-weight: 700; margin: 36px 0 16px; }
+  h3 { font-size: 17px; font-weight: 700; margin: 24px 0 10px; }
+  p { font-size: 15px; line-height: 1.7; color: #374151; margin-bottom: 16px; }
+  ul { margin: 0 0 16px 20px; }
+  ul li { font-size: 15px; line-height: 1.8; color: #374151; }
+
+  .callout { border-left: 4px solid #5b4cf5; background: #ede9fe; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .callout p { margin: 0; font-size: 14px; color: #374151; }
+  .warning { border-left: 4px solid #f59e0b; background: #fffbeb; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .warning p { margin: 0; font-size: 14px; color: #374151; }
+  .danger { border-left: 4px solid #ef4444; background: #fef2f2; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .danger p { margin: 0; font-size: 14px; color: #374151; }
+
+  /* Two-col */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 32px; }
+  .col-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; }
+  .col-card h4 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+  .col-card.upgrade h4 { color: #059669; }
+  .col-card.downgrade h4 { color: #d97706; }
+  .col-card ul { margin-left: 16px; }
+  .col-card li { font-size: 14px; color: #374151; line-height: 1.7; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
+  th { background: #f3f4f6; text-align: left; padding: 12px 16px; font-weight: 600; }
+  td { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #374151; }
+
+  .faq-item { border-bottom: 1px solid #e5e7eb; padding: 20px 0; }
+  .faq-item h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .faq-item p { font-size: 14px; color: #6b7280; margin-bottom: 0; }
+
+  .related { background: #ede9fe; border-radius: 12px; padding: 24px; margin-top: 48px; }
+  .related h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: #5b4cf5; }
+  .related a { display: block; font-size: 14px; color: #1a1a2e; text-decoration: none; padding: 4px 0; }
+  .related a:hover { color: #5b4cf5; text-decoration: underline; }
+
+  footer { background: #1a1a2e; color: #9ca3af; text-align: center; padding: 32px; font-size: 13px; }
+  footer a { color: #9ca3af; text-decoration: none; margin: 0 12px; }
+  .footer-logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">Orbit<span>.</span></a>
+  <div class="nav-links">
+    <a href="#">Product</a>
+    <a href="#">Pricing</a>
+    <a href="index.html">Help Center</a>
+  </div>
+  <div class="nav-right"><a href="#">Sign In</a></div>
+</nav>
+
+<div class="breadcrumb">
+  <a href="index.html">Help Center</a> › Upgrades &amp; Downgrades
+</div>
+
+<div class="page">
+  <div class="page-header">
+    <h1>Upgrades &amp; Downgrades</h1>
+    <p>How to change your Orbit plan, when changes take effect, seat limit checks, and how temporary upgrades work.</p>
+  </div>
+
+  <h2>Overview</h2>
+  <p>You can upgrade or downgrade your Orbit plan at any time through your account settings or via our virtual assistant. Plan changes are not prorated — they take effect at the start of your next billing cycle. You will continue on your current plan until then.</p>
+
+  <div class="two-col">
+    <div class="col-card upgrade">
+      <h4>⬆️ Upgrading</h4>
+      <ul>
+        <li>Always eligible — no seat check required</li>
+        <li>More seats and storage become available next cycle</li>
+        <li>Can specify a duration ("for 3 months") for temporary upgrades</li>
+        <li>Requires explicit confirmation before change is applied</li>
+      </ul>
+    </div>
+    <div class="col-card downgrade">
+      <h4>⬇️ Downgrading</h4>
+      <ul>
+        <li>Seat count check required — if your active seats exceed the lower plan's limit, downgrade is blocked</li>
+        <li>You must deactivate seats before downgrading</li>
+        <li>Storage reduction takes effect next cycle — files exceeding new limit trigger a warning</li>
+        <li>Requires explicit confirmation before change is applied</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Seat Limits and Downgrade Eligibility</h2>
+  <p>Every plan has a maximum number of active user seats. Before a downgrade can proceed, Orbit checks whether your current active seat count fits within the lower plan's limit.</p>
+
+  <table>
+    <thead>
+      <tr><th>Plan</th><th>Max Seats</th><th>Storage</th><th>Monthly Price</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Individual</td><td>1</td><td>10 GB</td><td>$10</td></tr>
+      <tr><td>Team</td><td>10</td><td>100 GB</td><td>$49</td></tr>
+      <tr><td>Business</td><td>30</td><td>500 GB</td><td>$129</td></tr>
+      <tr><td>Enterprise</td><td>100</td><td>2 TB</td><td>$399</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Example:</strong> If your Business account has 25 active seats and you want to downgrade to Team (max 10 seats), the downgrade will be blocked. You must deactivate 15 or more seats to bring the count to 10 or below before the downgrade can proceed.</p>
+
+  <div class="danger">
+    <p><strong>Blocked downgrade:</strong> If your seat count exceeds the target plan's limit, the downgrade cannot be processed automatically. Our support team will help you manage seat deactivation so you can proceed with the plan change.</p>
+  </div>
+
+  <h2>Temporary Upgrades</h2>
+  <p>You can upgrade to a higher plan for a specific period of time. At the end of that period, your plan reverts automatically to your previous tier. No manual action is required.</p>
+
+  <p><strong>How to request a temporary upgrade:</strong> When asking our virtual assistant (or submitting a request via Settings), specify the duration. Examples:</p>
+  <ul>
+    <li>"Upgrade to Business for 3 months"</li>
+    <li>"Switch us to Enterprise for the next 6 months"</li>
+  </ul>
+
+  <p>The revert date will be confirmed in your upgrade receipt. You can view the scheduled revert date at any time from <strong>Settings → Plan</strong>.</p>
+
+  <div class="callout">
+    <p><strong>No duration = permanent:</strong> If you do not specify a duration, the plan change is permanent. There is no automatic revert. You would need to initiate a downgrade manually if you later want to move to a lower tier.</p>
+  </div>
+
+  <h2>Effective Date</h2>
+  <p>All plan changes — upgrades and downgrades — take effect at the start of your next billing cycle. There is no mid-cycle proration. You will be charged the new plan's rate on your next billing date.</p>
+
+  <h2>Changing Plans While Suspended</h2>
+  <p>You cannot change your plan while your account is suspended. Restore your account first (pay the outstanding balance), and then request a plan change. If you want to upgrade as part of the restoration, our virtual assistant can handle the restore and plan upgrade in the same conversation.</p>
+
+  <h2>Frequently Asked Questions</h2>
+
+  <div class="faq-item">
+    <h3>Can I upgrade and downgrade in the same billing cycle?</h3>
+    <p>Technically yes, but both changes take effect at the next billing cycle boundary. The most recent plan change request will be the one applied going forward.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>What happens to my files if I downgrade to a plan with less storage?</h3>
+    <p>Your files are not deleted automatically. However, you will receive a warning that your stored files exceed the new plan's storage limit, and you will not be able to upload new files until you are within the limit. We recommend deleting or downloading excess files before the downgrade takes effect.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>I upgraded to Business for 3 months. Will I be notified before it reverts?</h3>
+    <p>Yes. Orbit sends an email reminder 7 days before your temporary upgrade expires. The revert date is also visible in Settings → Plan at any time.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>Can I extend a temporary upgrade before it expires?</h3>
+    <p>Yes. Contact our virtual assistant or support team before the revert date and request an extension. The new revert date will be set from the original end date, not from today.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>How many seats do I need to deactivate to downgrade?</h3>
+    <p>Our virtual assistant will tell you exactly how many active seats you currently have and how many need to be deactivated to meet the lower plan's limit. For example: "Your team has 25 active seats, which exceeds the Team plan's 10-seat limit. 15 seats would need to be deactivated before the downgrade can proceed."</p>
+  </div>
+
+  <div class="related">
+    <h3>Related articles</h3>
+    <a href="plans_pricing.html">Plans &amp; Pricing — comparing all four tiers</a>
+    <a href="billing_payment.html">Billing &amp; Payment — how billing cycles work</a>
+    <a href="suspension_reactivation.html">Suspension &amp; Reactivation — upgrading at restore time</a>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">Orbit.</div>
+  <div>
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms of Service</a>
+    <a href="#">Status</a>
+    <a href="#">Contact Support</a>
+  </div>
+  <p style="margin-top:16px;">© 2026 Orbit Technologies, Inc. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

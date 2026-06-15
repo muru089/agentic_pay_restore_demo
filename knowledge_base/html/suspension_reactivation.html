@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Suspension &amp; Reactivation — Orbit Help Center</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8fc; color: #1a1a2e; }
+  nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 40px; display: flex; align-items: center; height: 64px; gap: 32px; }
+  .nav-logo { font-size: 22px; font-weight: 700; color: #5b4cf5; letter-spacing: -0.5px; text-decoration: none; }
+  .nav-logo span { color: #1a1a2e; }
+  .nav-links a { font-size: 14px; color: #555; text-decoration: none; margin-right: 24px; }
+  .nav-links a:hover { color: #5b4cf5; }
+  .nav-right { margin-left: auto; }
+  .nav-right a { background: #5b4cf5; color: #fff; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 8px; text-decoration: none; }
+  .breadcrumb { max-width: 860px; margin: 24px auto 0; padding: 0 32px; font-size: 13px; color: #9ca3af; }
+  .breadcrumb a { color: #5b4cf5; text-decoration: none; }
+  .page { max-width: 860px; margin: 0 auto; padding: 32px 32px 80px; }
+  .page-header { margin-bottom: 40px; border-bottom: 1px solid #e5e7eb; padding-bottom: 24px; }
+  .page-header h1 { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+  .page-header p { font-size: 16px; color: #6b7280; }
+  h2 { font-size: 20px; font-weight: 700; margin: 36px 0 16px; }
+  p { font-size: 15px; line-height: 1.7; color: #374151; margin-bottom: 16px; }
+  ol, ul { margin: 0 0 16px 20px; }
+  li { font-size: 15px; line-height: 1.8; color: #374151; }
+
+  .callout { border-left: 4px solid #5b4cf5; background: #ede9fe; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .callout p { margin: 0; font-size: 14px; color: #374151; }
+  .warning { border-left: 4px solid #ef4444; background: #fef2f2; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .warning p { margin: 0; font-size: 14px; color: #374151; }
+
+  /* Steps */
+  .steps { counter-reset: step; margin-bottom: 32px; }
+  .step { display: flex; gap: 16px; margin-bottom: 20px; }
+  .step-num { counter-increment: step; background: #5b4cf5; color: #fff; font-size: 13px; font-weight: 700; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .step-num::before { content: counter(step); }
+  .step-body h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .step-body p { font-size: 14px; color: #6b7280; margin: 0; }
+
+  .faq-item { border-bottom: 1px solid #e5e7eb; padding: 20px 0; }
+  .faq-item h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .faq-item p { font-size: 14px; color: #6b7280; margin-bottom: 0; }
+
+  .related { background: #ede9fe; border-radius: 12px; padding: 24px; margin-top: 48px; }
+  .related h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: #5b4cf5; }
+  .related a { display: block; font-size: 14px; color: #1a1a2e; text-decoration: none; padding: 4px 0; }
+  .related a:hover { color: #5b4cf5; text-decoration: underline; }
+
+  footer { background: #1a1a2e; color: #9ca3af; text-align: center; padding: 32px; font-size: 13px; }
+  footer a { color: #9ca3af; text-decoration: none; margin: 0 12px; }
+  .footer-logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">Orbit<span>.</span></a>
+  <div class="nav-links">
+    <a href="#">Product</a>
+    <a href="#">Pricing</a>
+    <a href="index.html">Help Center</a>
+  </div>
+  <div class="nav-right"><a href="#">Sign In</a></div>
+</nav>
+
+<div class="breadcrumb">
+  <a href="index.html">Help Center</a> › Suspension &amp; Reactivation
+</div>
+
+<div class="page">
+  <div class="page-header">
+    <h1>Suspension &amp; Reactivation</h1>
+    <p>Why accounts are suspended, what remains accessible during suspension, and how to restore your service.</p>
+  </div>
+
+  <h2>Why Accounts Get Suspended</h2>
+  <p>An Orbit account is suspended when a payment fails and the outstanding balance is not settled within 3 days. This can happen when:</p>
+  <ul>
+    <li>A credit or debit card on file has expired</li>
+    <li>AutoPay is disabled and a manual payment was not made by the due date</li>
+    <li>A card is declined due to insufficient funds or bank restrictions</li>
+    <li>The card was updated with incorrect details</li>
+  </ul>
+  <p>Orbit sends email reminders before suspending an account. If a payment fails, you receive an immediate notification, followed by a second notice 24 hours before suspension takes effect.</p>
+
+  <h2>What Happens During Suspension</h2>
+  <p>While your account is suspended:</p>
+  <ul>
+    <li>Team members cannot log in or access any projects</li>
+    <li>Automations and integrations are paused</li>
+    <li>Your data is retained for up to 30 days from the suspension date (see the Data &amp; Storage article for details)</li>
+    <li>You cannot invite new members or make plan changes</li>
+    <li>The account owner can still log in to settle the balance and initiate restoration</li>
+  </ul>
+
+  <div class="warning">
+    <p><strong>Data risk after 30 days:</strong> If a suspended account remains unpaid for more than 30 days, projects may be archived or permanently deleted. Restore your account within 30 days to ensure all data is preserved.</p>
+  </div>
+
+  <h2>How to Restore Your Account</h2>
+  <p>The fastest way to restore your account is through our virtual assistant. Here is what happens step by step:</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <h4>Confirm your account</h4>
+        <p>Provide your 5-digit account ID. The assistant retrieves your account status, balance, and data retention window.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <h4>Data safety check</h4>
+        <p>The assistant confirms whether your projects are still within the 30-day retention window and reports how many projects are on file.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <h4>Review your balance and late fee</h4>
+        <p>Your pending balance and any applicable late fee are disclosed upfront. If eligible, the late fee is waived automatically.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <h4>Provide or confirm payment</h4>
+        <p>If your card on file is valid, you can confirm payment directly. If it is expired, you will be asked to provide a new card number. The new card replaces the expired one for all future charges.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num"></div>
+      <div class="step-body">
+        <h4>Account restored</h4>
+        <p>Once payment is processed, your account is restored immediately. All team members can log in and access projects right away. A confirmation receipt is sent to the email on file.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p><strong>One-step restore:</strong> If your account was suspended due to an expired card, simply provide your new card number and give consent to pay. The assistant handles the rest — card update, payment, late fee check, and restore — in a single transaction.</p>
+  </div>
+
+  <h2>Frequently Asked Questions</h2>
+
+  <div class="faq-item">
+    <h3>Can I restore my account without paying the full balance?</h3>
+    <p>No. The full pending balance must be paid in a single transaction before the account can be restored. Partial payments are not accepted.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>My account has been suspended for over 30 days. What should I do?</h3>
+    <p>After 30 days, some or all project data may have been archived or deleted. Contact our support team before initiating a restore — a data recovery specialist can advise you on what is recoverable. Restoring without consulting the team will not recover already-deleted data.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>How long does restoration take after I pay?</h3>
+    <p>Restoration is immediate. Once your payment is confirmed, your account status updates within seconds. Team members can log in right away.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>Will I be charged for the days my account was suspended?</h3>
+    <p>No. Orbit does not prorate billing during suspension periods. Your billing cycle resets from the date of restoration.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>Can I cancel instead of restoring?</h3>
+    <p>Yes. Contact our support team and they will walk you through the cancellation process. Note that canceling a suspended account does not require settling the balance in most cases — our team will advise on your specific situation.</p>
+  </div>
+
+  <div class="related">
+    <h3>Related articles</h3>
+    <a href="billing_payment.html">Billing &amp; Payment — late fees and fee waiver eligibility</a>
+    <a href="data_retention.html">Data &amp; Storage — 30-day retention window explained</a>
+    <a href="upgrades_downgrades.html">Upgrading your plan at the time of restoration</a>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">Orbit.</div>
+  <div>
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms of Service</a>
+    <a href="#">Status</a>
+    <a href="#">Contact Support</a>
+  </div>
+  <p style="margin-top:16px;">© 2026 Orbit Technologies, Inc. All rights reserved.</p>
+</footer>
+
+</body>
+</html>
