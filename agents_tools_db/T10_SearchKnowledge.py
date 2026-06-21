@@ -18,7 +18,7 @@ from pathlib import Path
 from google import genai
 from dotenv import load_dotenv
 
-BASE_DIR           = Path(__file__).parent
+BASE_DIR           = Path(__file__).parent.parent   # pay_restore_demo/ root
 CHROMA_DIR         = BASE_DIR / "knowledge_base" / "chroma_db"
 COLLECTION         = "orbit_help"
 EMBED_MODEL        = "gemini-embedding-2"

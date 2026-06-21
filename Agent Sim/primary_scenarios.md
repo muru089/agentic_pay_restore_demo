@@ -205,9 +205,9 @@ Run `py z_reset_world.py` before each session to reset the DB to a clean state.
 ---
 
 ### S17 · Out-of-knowledge-base question (graceful fallback)
-**Utterance:** "Do you offer annual billing? Is there a discount for paying yearly?"
+**Utterance:** "Does Orbit have a GDPR Data Processing Agreement I can sign? We need a DPA before our legal team approves the purchase."
 
-**Expected:** T10 returns [LOW_CONFIDENCE] (annual billing not covered in any HTML page). Graceful fallback — no hallucination. Support email redirect offered.
+**Expected:** T10 returns [LOW_CONFIDENCE] (GDPR/DPA not covered in any HTML page, and Orbit-specific enough that training data has no answer). Graceful fallback — no hallucination. Support email redirect offered: "support@orbit.io is the best resource."
 
 ---
 
@@ -277,18 +277,103 @@ Run `py z_reset_world.py` before each session to reset the DB to a clean state.
 
 ---
 
+## Group 9 — Diagnostic Supervisor (SA1)
+
+*These require account IDs 20012 and 20013. Both are ACTIVE accounts with no billing issues.
+The diagnostic trigger is an ambiguous health complaint — neither "billing" nor "plan change" fits.
+SA1 fans out DA1_AccountAgent, DA5_StorageAgent, and DA6_IntegrationAgent in parallel, then
+synthesises the findings and routes to the domain with the highest-urgency issue.*
+
+---
+
+### SD01 · Taylor 20012 · Storage near limit (95 / 100 GB) — storage is the culprit
+
+**Account:** Active, Team plan, 11 months, 8 seats, Slack integration healthy.
+**Signal:** 95 GB used out of 100 GB (95%) — near the team plan ceiling.
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Account 20012 — something feels off lately. Projects are loading slowly and a few uploads just failed. Not sure what's going on." |
+| 2 | "Ah, that makes sense. What are my options?" |
+
+**Expected:**
+- root_agent recognises ambiguous multi-dimensional complaint → routes to SA1_DiagnosticSupervisor
+- SA1 fans out: DA1 (data/account health) + DA5_StorageAgent (T11) + DA6_IntegrationAgent (T12) in parallel
+- DA1: account ACTIVE, data fine
+- T11: 95/100 GB used (95%) → `near_limit=True`, threshold=90%, headroom=5 GB
+- T12: Slack healthy, last sync yesterday → no integration issue
+- SA1 synthesises: integration OK, account OK, **storage is the culprit** — near limit causes upload failures and slow project access
+- Agent explains storage near-limit issue warmly, presents upgrade options (Business plan = 500 GB)
+
+---
+
+### SD02 · Blake 20013 · Integration auth failure (GitHub, 5 failures) — integration is the culprit
+
+**Account:** Active, Business plan, 16 months, 12 seats, GitHub integration with 5 auth failures, last sync 3 days ago.
+**Signal:** Storage healthy (45/500 GB = 9%), but GitHub auth repeatedly failing.
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Account 20013 — things just don't feel right. My team says changes aren't showing up in projects, like it's not syncing. I don't know if it's a billing thing or what." |
+| 2 | "Yes, please walk me through how to fix the GitHub connection." |
+
+**Expected:**
+- root_agent routes to SA1_DiagnosticSupervisor
+- SA1 fans out: DA1 + DA5_StorageAgent (T11) + DA6_IntegrationAgent (T12) in parallel
+- DA1: account ACTIVE, no issues
+- T11: 45/500 GB (9%) → healthy, plenty of headroom
+- T12: GitHub — `auth_failure`, 5 failures in recent window, last sync 3 days ago → `action_required=True`
+- SA1 synthesises: storage OK, account OK, **integration is the culprit** — GitHub auth token likely expired or revoked
+- Agent explains the GitHub auth issue, steps to reconnect the integration in Orbit settings
+
+---
+
+### SD03 · SA1 single-intent bypass — storage question only (no SA1 needed)
+
+**Account:** Taylor 20012
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Account 20012 — how much storage am I using right now?" |
+
+**Expected:**
+- Single-intent storage query → root_agent routes DIRECTLY to DA5_StorageAgent (T11), bypasses SA1
+- T11 returns: 95/100 GB, near_limit=True
+- Agent reports storage usage clearly, mentions headroom risk without diagnosing the whole account
+- SA1 is NOT invoked — single-dimension questions bypass the supervisor
+
+---
+
+### SD04 · SA1 single-intent bypass — integration status only (no SA1 needed)
+
+**Account:** Blake 20013
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Account 20013 — is our GitHub integration working? It feels like it stopped syncing." |
+
+**Expected:**
+- Single-intent integration query → root_agent routes DIRECTLY to DA6_IntegrationAgent (T12), bypasses SA1
+- T12 returns: auth_failure, 5 failures, last sync 3 days ago
+- Agent reports the GitHub issue, offers reconnect guidance
+- SA1 is NOT invoked
+
+---
+
 ## Quick Reference — Account Summary
 
-| ID | Name | Company | Plan | Status | Key Scenario |
-|----|------|---------|------|--------|--------------|
-| 20001 | Alex | Wavefront | Team | SUSPENDED | S01 — primary demo |
-| 20002 | Jordan | Sprinto | Team | SUSPENDED | S03 — waiver FAIL Rule A |
-| 20003 | Sam | Arclight | Business | SUSPENDED | S07 — data AT RISK |
-| 20004 | Riley | Nomad Labs | Individual | SUSPENDED | S04 — waiver FAIL Rule C |
-| 20005 | Morgan | Crestline | Team | SUSPENDED | S05 — waiver FAIL Rule B |
-| 20006 | Casey | Driftwood | Team | ACTIVE | S08 — clean upgrade |
-| 20007 | Drew | Lumen Co | Business | ACTIVE | S09 — downgrade BLOCKED |
-| 20008 | Quinn | Pathfinder | Business | ACTIVE | S10 — clean downgrade |
-| 20009 | Jamie | Redpine | Business | SUSPENDED | S06 — waiver boundary (6.0mo) |
-| 20010 | Avery | Stratos | Enterprise | SUSPENDED | S02 — Enterprise restore |
-| 20011 | Parker | Helix Systems | Team | CANCELED | S11 — win-back |
+| ID | Name | Company | Plan | Status | Storage | Integration | Key Scenario |
+|----|------|---------|------|--------|---------|-------------|--------------|
+| 20001 | Alex | Wavefront | Team | SUSPENDED | 72/100 GB | Slack healthy | S01 — primary demo |
+| 20002 | Jordan | Sprinto | Team | SUSPENDED | 18/100 GB | GitHub healthy | S03 — waiver FAIL Rule A |
+| 20003 | Sam | Arclight | Business | SUSPENDED | 210/500 GB | Jira sync error | S07 — data AT RISK |
+| 20004 | Riley | Nomad Labs | Individual | SUSPENDED | 7.5/10 GB | None | S04 — waiver FAIL Rule C |
+| 20005 | Morgan | Crestline | Team | SUSPENDED | 55/100 GB | Slack healthy | S05 — waiver FAIL Rule B |
+| 20006 | Casey | Driftwood | Team | ACTIVE | 45/100 GB | Jira healthy | S08 — clean upgrade |
+| 20007 | Drew | Lumen Co | Business | ACTIVE | 380/500 GB | GitHub healthy | S09 — downgrade BLOCKED |
+| 20008 | Quinn | Pathfinder | Business | ACTIVE | 50/500 GB | Slack healthy | S10 — clean downgrade |
+| 20009 | Jamie | Redpine | Business | SUSPENDED | 125/500 GB | GitHub healthy | S06 — waiver boundary (6.0mo) |
+| 20010 | Avery | Stratos | Enterprise | SUSPENDED | 1200/2048 GB | Slack healthy | S02 — Enterprise restore |
+| 20011 | Parker | Helix Systems | Team | CANCELED | 5 GB | None | S11 — win-back |
+| 20012 | Taylor | Brightline | Team | ACTIVE | **95/100 GB** | Slack healthy | SD01 — storage culprit |
+| 20013 | Blake | Nexus Digital | Business | ACTIVE | 45/500 GB | **GitHub auth_failure** | SD02 — integration culprit |

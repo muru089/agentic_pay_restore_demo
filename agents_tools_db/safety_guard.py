@@ -22,6 +22,9 @@ chat text is intentional (see CLAUDE.md card payment flow exception).
 import os
 import requests
 from pathlib import Path
+from .log_setup import get_logger
+
+_log = get_logger("safety")
 
 # Auto-load .env so tests work outside ADK runtime (ADK loads it automatically in production)
 try:
@@ -59,14 +62,20 @@ def _t2a_prompt_shield(text: str) -> bool:
             timeout=3.0,
         )
         if resp.status_code != 200:
-            print(f"[safety_guard] Prompt Shield HTTP {resp.status_code} — failing open.")
+            msg = f"Prompt Shield HTTP {resp.status_code} — failing open"
+            print(f"[safety_guard] {msg}")
+            _log.error(msg)
             return False
         return resp.json().get("userPromptAnalysis", {}).get("attackDetected", False)
     except requests.exceptions.Timeout:
-        print("[safety_guard] Prompt Shield timeout — failing open.")
+        msg = "Prompt Shield timeout — failing open"
+        print(f"[safety_guard] {msg}")
+        _log.warning(msg)
         return False
     except Exception as exc:
-        print(f"[safety_guard] Prompt Shield error (failing open): {exc}")
+        msg = f"Prompt Shield error (failing open): {exc}"
+        print(f"[safety_guard] {msg}")
+        _log.error(msg)
         return False
 
 
@@ -95,17 +104,26 @@ def _t2b_text_analyze(text: str) -> tuple[bool, str]:
             timeout=3.0,
         )
         if resp.status_code != 200:
-            print(f"[safety_guard] Text Analyze HTTP {resp.status_code} — failing open.")
+            msg = f"Text Analyze HTTP {resp.status_code} — failing open"
+            print(f"[safety_guard] {msg}")
+            _log.error(msg)
             return False, ""
         for item in resp.json().get("categoriesAnalysis", []):
             if item.get("severity", 0) >= _BLOCK_SEVERITY:
-                return True, item.get("category", "unknown")
+                cat = item.get("category", "unknown")
+                sev = item.get("severity", 0)
+                _log.info(f"BLOCKED  category={cat}  severity={sev}")
+                return True, cat
         return False, ""
     except requests.exceptions.Timeout:
-        print("[safety_guard] Text Analyze timeout — failing open.")
+        msg = "Text Analyze timeout — failing open"
+        print(f"[safety_guard] {msg}")
+        _log.warning(msg)
         return False, ""
     except Exception as exc:
-        print(f"[safety_guard] Text Analyze error (failing open): {exc}")
+        msg = f"Text Analyze error (failing open): {exc}"
+        print(f"[safety_guard] {msg}")
+        _log.error(msg)
         return False, ""
 
 
@@ -123,6 +141,7 @@ def check(message: str) -> tuple[str, str | None]:
     """
     # ── T1: SSN ───────────────────────────────────────────────────────
     if _SSN_RE.search(message):
+        _log.info(f"BLOCKED  rule=T1/SSN  preview={message[:60]!r}")
         return (
             "block",
             "For your security, I can't accept sensitive personal data in chat. "
@@ -131,6 +150,7 @@ def check(message: str) -> tuple[str, str | None]:
 
     # ── T2a: Prompt Shield (injection / jailbreak) ────────────────────
     if _t2a_prompt_shield(message):
+        _log.info(f"BLOCKED  rule=T2a/PromptShield  preview={message[:60]!r}")
         return (
             "block",
             "I'm here to help with your account — what can I assist you with today?",

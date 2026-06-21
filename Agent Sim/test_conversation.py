@@ -41,7 +41,7 @@ if os.path.exists(_env_path):
                 _k, _v = _line.split("=", 1)
                 os.environ.setdefault(_k.strip(), _v.strip())
 
-from pay_restore_demo.agent import root_agent
+from pay_restore_demo import root_agent
 
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -230,11 +230,12 @@ from google.genai import types
 # Expected: $129 balance + $50 late fee disclosed upfront. Restore completes.
 # ---------------------------------------------------------------------------
 TURNS = [
-    (1, "I need to restore my account. Account 20009."),
-    (2, "New card number is 4111 1111 1111 7777. Yes, go ahead."),
+    (1, "Our business account is suspended and I need to restore it. Account 20003."),
+    (2, "I understand the risk. I want to proceed with the restore."),
+    (3, "New card number is 4111 1111 1111 9988. Yes, go ahead."),
 ]
 APP_NAME = "pay_restore_test"
-USER_ID  = "test_20009"
+USER_ID  = "test_20003"
 
 SEP = "=" * 70
 
@@ -361,7 +362,7 @@ async def run_test():
         import sqlite3 as _sqlite3
         import re as _re
 
-        _db_path = os.path.join(_project_dir, "pay_restore.db")
+        _db_path = os.path.join(_project_dir, "agents_tools_db", "pay_restore.db")
         _db  = _sqlite3.connect(_db_path)
         _cur = _db.cursor()
 

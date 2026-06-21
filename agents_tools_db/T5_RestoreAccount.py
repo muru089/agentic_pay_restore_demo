@@ -22,6 +22,9 @@ OUTPUT:
 """
 
 import sqlite3
+from .log_setup import get_logger
+
+_log = get_logger("tool.T5")
 
 
 def T5_RestoreAccount(conn, account_id):
@@ -49,6 +52,7 @@ def T5_RestoreAccount(conn, account_id):
 
         conn.commit()
 
+        _log.info(f"RESTORE_OK  account={account_id}  status=ACTIVE")
         return {
             "status":     "success",
             "account_id": account_id,
@@ -56,6 +60,7 @@ def T5_RestoreAccount(conn, account_id):
         }
 
     except sqlite3.Error as e:
+        _log.error(f"RESTORE_FAIL  account={account_id}  error={e}")
         return {"status": "error", "message": str(e)}
 
 

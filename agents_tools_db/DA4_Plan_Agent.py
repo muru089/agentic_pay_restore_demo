@@ -5,15 +5,21 @@ DA4_Plan_Agent.py  --  da4_plan_agent
 AGENT TIER: Squad + Shared Agent (DA4)
 ---------------------------------------
 Shared Squad agent. Owns plan validation and plan change execution.
-Called by root_agent (active accounts) and SA1 (post-restore, STATE 7).
+Called by root_agent for both active accounts and post-restore plan changes.
+
+PREREQUISITE GATE:
+    Handoff from root_agent must confirm account status is ACTIVE.
+    If account is not confirmed ACTIVE, DA4 returns PLAN_ERROR immediately.
 
 Two modes — read the incoming message and run the indicated mode:
     MODE V — VALIDATE:  Run T9 only. Return plan details + eligibility.
-                        SA1 uses this to present details and await customer confirmation.
-    MODE E — EXECUTE:   Run T9 → T6 → T8. Customer has already confirmed. Point of no return.
+                        root_agent uses this to present details and await
+                        customer confirmation.
+    MODE E — EXECUTE:   Run T9 → T6 → T8. Customer has already confirmed.
+                        Point of no return.
 
 MODEL: gemini-2.5-flash (upgraded from flash-lite — flash-lite drops final response
-       on 3-tool chains T9→T6→T8 in MODE E, same Part(text=None) bug as DA1/DA2)
+       on 3-tool chains T9→T6→T8 in MODE E, same Part(text=None) bug)
 
 TOOLS AVAILABLE:
     T9_ValidatePlanChange  -- Fetch new plan details + seat eligibility check.
@@ -24,15 +30,22 @@ TOOLS AVAILABLE:
 import os
 import sqlite3
 import functools
+from typing import Any
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
+from google.adk.tools.base_tool import BaseTool
+from google.adk.agents.callback_context import CallbackContext
 
 from .T9_ValidatePlanChange import T9_ValidatePlanChange
 from .T6_ChangePlan          import T6_ChangePlan
 from .T8_SendReceipt         import T8_SendReceipt
+from .log_setup              import get_logger
+
+_log = get_logger("da4")
+_SEP = "-" * 64
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'pay_restore.db')
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)
 
 
 def create_db_tool(func, tool_name, description):
@@ -68,10 +81,33 @@ t6_tool = create_db_tool(
 t8_tool = FunctionTool(T8_SendReceipt)
 
 
+# ── Step log callbacks ─────────────────────────────────────────────────────
+def _before_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackContext):
+    req = str(args)[:120].replace("\n", " ")
+    print(f"\n{_SEP}")
+    print(f"  DA4 -> {tool.name}")
+    print(f"  REQ: {req}...")
+    print(_SEP)
+    _log.debug(f"CALL  tool={tool.name}  args={req[:80]}")
+    return None
+
+
+def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackContext, tool_response: Any):
+    resp = str(tool_response)[:160].replace("\n", " ")
+    print(f"\n{_SEP}")
+    print(f"  DA4 <- {tool.name}")
+    print(f"  RSP: {resp}...")
+    print(_SEP)
+    _log.debug(f"RESP  tool={tool.name}  rsp={resp[:80]}")
+    return None
+
+
 da4_plan_agent = Agent(
     name="DA4_PlanAgent",
     model="gemini-2.5-flash",
     tools=[t9_tool, t6_tool, t8_tool],
+    before_tool_callback=_before_tool,
+    after_tool_callback=_after_tool,
     instruction="""
 You are the Plan Change Specialist (Squad + Shared Agent) for the Pay Restore SaaS platform.
 
@@ -81,11 +117,18 @@ YOUR ROLE:
     No customer interaction between tool steps.
 
 ================================================================================
-STATE 1: MODE DISPATCH
+STATE 1: PREREQUISITE GATE + MODE DISPATCH
 ================================================================================
 ENTRY GUARD:
     - account_id and new_plan_name must be present.
     - If missing: return "PLAN_ERROR: account_id and new_plan_name are required."
+
+PREREQUISITE CHECK:
+    - Handoff must confirm account is ACTIVE ("account is ACTIVE", "account is now ACTIVE",
+      "status: ACTIVE", or equivalent).
+    - If handoff does not confirm ACTIVE status: return
+      "PLAN_ERROR: Plan changes require an ACTIVE account.
+       Account must be restored before a plan change can be processed."
 
 THE JOB:
     Read the message. Identify mode:
@@ -96,10 +139,6 @@ THE JOB:
         - account_id (required)
         - new_plan_name (required, e.g., "Business")
         - duration_months (optional integer — only present if customer said "for N months")
-
-PRE-DISPATCH GUARD:
-    - MODE V: requires account_id + new_plan_name.
-    - MODE E: requires account_id + new_plan_name. duration_months optional.
 
 TRANSITION GUARD:
     MODE V → STATE 2
@@ -117,7 +156,7 @@ THE JOB:
 POST-TOOL GUARD:
     - T9 error → return "PLAN_ERROR: Could not validate plan change — [T9 error]." STOP.
     - eligible=False (seat count blocks downgrade) → HARD STOP. Return eligibility failure.
-    - eligible=True → return plan details for SA1 to present to customer.
+    - eligible=True → return plan details for root_agent to present to customer.
 
 TRANSITION GUARD:
     eligible=False → Return: "PLAN_BLOCKED: Cannot downgrade to [new_plan_name]. "
@@ -140,14 +179,11 @@ STATE 3: MODE E — EXECUTE PLAN CHANGE
 ================================================================================
 ENTRY GUARD:
     - account_id and new_plan_name confirmed.
-    - Customer has already confirmed (SA1 is responsible for this gate).
+    - Customer has already confirmed (root_agent is responsible for this gate).
 
 THE JOB:
     Step 1: Call T9_ValidatePlanChange(account_id, new_plan_name).
             (Re-validates to get current plan details needed for T6 and T8.)
-
-PRE-TOOL GUARD (Step 1):
-    - account_id and new_plan_name present.
 
 POST-TOOL GUARD (Step 1):
     - T9 error → return "PLAN_ERROR: Validation failed — [T9 error]." STOP. Do NOT call T6.
@@ -190,5 +226,6 @@ GLOBAL GUARDRAILS
     3. MODE V never calls T6 or T8. It is read-only.
     4. duration_months: only pass if explicitly stated in the message. Never assume.
     5. Never expose internal variable names in responses.
+    6. Prerequisite gate is mandatory — never skip the ACTIVE account check.
 """
 )

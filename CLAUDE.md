@@ -15,7 +15,7 @@ This utterance contains 6 intents: suspension check, data safety, new card colle
 | Field | Value |
 |---|---|
 | **Project name** | pay_restore_demo |
-| **Product name** | TBD (generic SaaS — not named yet) |
+| **Product name** | Orbit (cloud SaaS project management) |
 | **Domain** | Cloud SaaS — project management / team collaboration |
 | **Folder** | `c:\Muru_Workspace\pay_restore_demo` |
 | **DB file** | `pay_restore.db` |
@@ -128,56 +128,78 @@ CREATE TABLE customer_accounts (
 
 ## 5. Agent Architecture (3-tier — mirrors metro_city)
 
+> **Architecture note:** The restore flow was refactored in Phase 5. The original
+> SA1_RestoreSupervisor (7-state machine, Approach B transcript scanning) was archived.
+> root_agent now owns the restore sequencing directly using **persistent session state**
+> (SQLite `session_state` table). A new SA1_DiagnosticSupervisor handles account health
+> diagnostics (parallel fan-out across DA1 + DA5 + DA6). See Section 17 for full details.
+
 ```
 root_agent              (agent.py)                   gemini-2.5-flash      ← Uber
+  +-- T0_GetSessionState   (direct tool: persistent state read)
+  +-- T0_SetSessionState   (direct tool: persistent state write)
   +-- T1_GetAccount        (direct tool: auth)
-  +-- DA1_AccountAgent     (DA1_Account_Agent.py)    gemini-2.5-flash      ← upgraded (see note)
-  +-- DA2_BillingAgent     (DA2_Billing_Agent.py)    gemini-2.5-flash      ← upgraded (see note)
-  +-- DA4_PlanAgent        (DA4_Plan_Agent.py)       gemini-2.5-flash      ← Shared Squad (upgraded)
-  +-- SA1_RestoreSupervisor (SA1_Restore_Supervisor.py) gemini-2.5-flash   ← Supervisor
-        +-- DA1_AccountAgent    (data safety check)            via AgentTool
-        +-- DA2_BillingAgent    (payment, fee waiver)          via AgentTool
-        +-- DA3_RestoreAgent    (DA3_Restore_Agent.py)         gemini-2.5-flash ← Squad
-              +-- T5_RestoreAccount
-              +-- T8_SendReceipt
-        +-- DA4_PlanAgent       (plan upgrade/downgrade)       via AgentTool ← Shared
-              +-- T9_ValidatePlanChange
-              +-- T6_ChangePlan
-              +-- T8_SendReceipt
+  +-- T10_SearchKnowledge  (direct tool: RAG retrieval)
+  +-- DA1_AccountAgent     (DA1_Account_Agent.py)    gemini-2.5-flash      ← Domain
+  +-- DA2_BillingAgent     (DA2_Billing_Agent.py)    gemini-2.5-flash      ← Domain
+  +-- DA3_RestoreAgent     (DA3_Restore_Agent.py)    gemini-2.5-flash      ← Squad
+        +-- T5_RestoreAccount
+        +-- T8_SendReceipt
+  +-- DA4_PlanAgent        (DA4_Plan_Agent.py)       gemini-2.5-flash      ← Squad / Shared
+        +-- T9_ValidatePlanChange
+        +-- T6_ChangePlan
+        +-- T8_SendReceipt
+  +-- DA5_StorageAgent     (DA5_Storage_Agent.py)    gemini-2.5-flash      ← Domain
+        +-- T11_CheckStorage
+  +-- DA6_IntegrationAgent (DA6_Integration_Agent.py) gemini-2.5-flash     ← Domain
+        +-- T12_CheckIntegration
+  +-- SA1_DiagnosticSupervisor (SA1_Diagnostic_Supervisor.py) gemini-2.5-flash ← Supervisor
+        +-- DA1_AccountAgent   (account health check)          via AgentTool
+        +-- DA5_StorageAgent   (storage check)                 via AgentTool (parallel)
+        +-- DA6_IntegrationAgent (integration check)           via AgentTool (parallel)
 ```
 
-> **Model note — gemini-2.0-flash deprecated:** All agents migrated to gemini-2.5-flash family.
-> DA1 and DA2 were originally gemini-2.5-flash-lite but upgraded to gemini-2.5-flash due to the
-> **Part(text=None) AgentTool bug**: when SA1 calls DA1 and DA2 in parallel via AgentTool,
-> flash-lite silently drops its response (returns empty string). flash does not exhibit this bug.
-> DA4 is not called in parallel with other DAs from SA1, so flash-lite is safe there.
+> **Model note — all gemini-2.5-flash:** All agents use gemini-2.5-flash (no flash-lite anywhere).
+> DA1 and DA2 were originally flash-lite but upgraded due to the **Part(text=None) AgentTool bug**:
+> flash-lite silently drops its response when called in parallel from a supervisor.
+> DA5, DA6, SA1_DiagnosticSupervisor also use gemini-2.5-flash for consistency and reliability.
+
+> **Archived:** `archive/SA1_RestoreSupervisor_REMOVED.py` — original 7-state restore supervisor
+> using Approach B transcript scanning. Replaced by root_agent + persistent state (ROW 1–7 dispatch).
 
 | Tier | Agent | Model | Responsibility |
 |---|---|---|---|
-| Uber | root_agent | gemini-2.5-flash | Auth, input safety, routing |
-| Supervisor | SA1_RestoreSupervisor | gemini-2.5-flash | 7-state restore state machine. No direct tools. |
-| Domain | DA1_AccountAgent | gemini-2.5-flash | Account status, data retention check |
-| Domain | DA2_BillingAgent | gemini-2.5-flash | Payment, balance, fee waiver |
-| Squad | DA3_RestoreAgent | gemini-2.5-flash | Execute account restore + receipt only |
-| Squad (Shared) | DA4_PlanAgent | gemini-2.5-flash | Plan upgrade/downgrade + receipt. Called by root_agent (active accounts) and SA1 (post-restore). T6 lives here only. |
+| Uber | root_agent | gemini-2.5-flash | Auth, input safety, routing. Owns restore flow sequencing via ROW 1–7 dispatch table + T0 persistent state. |
+| Supervisor | SA1_DiagnosticSupervisor | gemini-2.5-flash | Parallel fan-out: DA1 + DA5 + DA6 in same turn. Synthesises urgency rating (HIGH/MEDIUM/HEALTHY). |
+| Domain | DA1_AccountAgent | gemini-2.5-flash | Account status, data retention check (T2) |
+| Domain | DA2_BillingAgent | gemini-2.5-flash | Payment (T3), balance (T7), fee waiver (T4) |
+| Squad | DA3_RestoreAgent | gemini-2.5-flash | Execute account restore (T5) + receipt (T8). Fire-and-return. |
+| Squad (Shared) | DA4_PlanAgent | gemini-2.5-flash | Plan upgrade/downgrade (T9→T6→T8). Called by root_agent (active accounts and post-restore). |
+| Domain | DA5_StorageAgent | gemini-2.5-flash | Storage consumption check (T11). Called directly by root or via SA1. |
+| Domain | DA6_IntegrationAgent | gemini-2.5-flash | Integration health check (T12). Called directly by root or via SA1. |
 
 ---
 
-## 6. Tool Reference (T1–T9)
+## 6. Tool Reference (T0–T12)
 
 | Tool | File | Signature | Purpose |
 |------|------|-----------|---------|
+| T0g | T0_SessionState.py | T0_GetSessionState(account_id) | Reads current restore session state from `session_state` table. Returns all 15 state fields. Returns defaults (all 0) if no session exists. Opens own DB connection. |
+| T0s | T0_SessionState.py | T0_SetSessionState(account_id, **fields) | UPSERT pattern — only non-None fields are updated. Call after each completed step. Opens own DB connection. |
 | T1 | T1_GetAccount.py | (conn, account_id) | Auth: returns first_name, plan, status, tenure_months, card_last4, card_expired, suspension_date, project_count |
-| T2 | T2_CheckDataRetention.py | (conn, account_id) | Calculates days_suspended. Returns data_safe (True if ≤ 30 days), days_suspended, project_count. If data_safe=False, SA1 must issue a soft stop and await explicit customer choice before proceeding. |
+| T2 | T2_CheckDataRetention.py | (conn, account_id) | Calculates days_suspended. Returns data_safe (True if ≤ 30 days), days_suspended, project_count. |
 | T3 | T3_ProcessPayment.py | (conn, account_id, new_card_last4=None) | Pays full pending_balance. If new_card_last4 provided, updates card_last4 + sets card_expired=0 before charging. Returns amount_charged, card_last4_used. |
 | T4 | T4_CheckFeeWaiver.py | (conn, account_id) | 3-rule waiver: tenure > 6mo, autopay=1, no prior waiver in 12mo. Looks up plan_catalog for late_fee. Returns waiver_granted, late_fee_amount, reason |
 | T5 | T5_RestoreAccount.py | (conn, account_id) | Sets status=ACTIVE, clears suspension_date, resets billing cycle |
 | T6 | T6_ChangePlan.py | (conn, account_id, new_plan_name, duration_months=None) | Updates plan_name in DB. Effective next billing cycle. If duration_months provided, sets downgrade_date = today + (duration_months × 30) days. If None, downgrade_date = NULL (permanent). Called only after T9 clears eligibility. |
 | T7 | T7_GetBalance.py | (conn, account_id) | Read-only. Returns pending_balance |
-| T8 | T8_SendReceipt.py | (account_id, action_type, details={}) | Confirmation receipt. Opens own DB conn (same T13 pattern) |
+| T8 | T8_SendReceipt.py | (account_id, action_type, details={}) | Confirmation receipt. Opens own DB conn. |
 | T9 | T9_ValidatePlanChange.py | (conn, account_id, new_plan_name) | Plan detail fetch + eligibility check. Looks up new plan in plan_catalog (price, max_users, storage_gb). Checks seat_count vs new plan max_users. Returns: eligible, direction (upgrade/downgrade), new_plan details, current_seat_count, seat_count_ok, storage_delta. Gates T6 — if eligible=False, T6 must not be called. |
+| T10 | T10_SearchKnowledge.py | (query) | RAG retrieval. Embeds query → cosine search → returns top-3 chunks from ChromaDB with source labels. Returns [LOW_CONFIDENCE] if best distance > 0.75. |
+| T11 | T11_CheckStorage.py | (conn, account_id) | Returns storage_used_gb, plan_storage_gb, storage_pct. Used by DA5_StorageAgent and SA1_DiagnosticSupervisor. |
+| T12 | T12_CheckIntegration.py | (conn, account_id) | Returns integration_name, integration_status, last_sync, auth_failures, action_required. Used by DA6_IntegrationAgent and SA1_DiagnosticSupervisor. |
 
-**DB injection:** functools.partial(fn, conn) on T1–T7 and T9. T8 exception: opens own connection.
+**DB injection:** functools.partial(fn, conn) on T1–T7, T9, T11, T12. T0 and T8 open their own connections — never wrap with create_db_tool.
 
 ---
 
@@ -288,34 +310,75 @@ The VA never dead-ends — it always hands off gracefully.
 
 ---
 
-## 8. Restore Flow — SA1_RestoreSupervisor (7 states)
+## 8. Restore Flow — root_agent Persistent State (ROW 1–7 Dispatch)
+
+> **Architecture note:** The original SA1_RestoreSupervisor with 7 states and HANDOFF SIGNALS
+> (Approach B transcript scanning) was replaced by root_agent owning the restore flow directly
+> using a SQLite `session_state` table. This eliminates transcript scanning ambiguity and makes
+> the flow deterministic across turns. The original supervisor is archived (see Section 17).
+
+**DISPATCH TABLE (root_agent checks rows top to bottom, fires the FIRST match):**
 
 ```
-STATE 1: Balance Gate       → T7 (check balance). If > $0 → ask consent.
-STATE 2: Data Safety Check  → DA1: T2 (days_suspended).
-                              If data_safe=True  → report safe, proceed to STATE 3.
-                              If data_safe=False → SOFT STOP. Present AT RISK notice + two paths:
-                                Path A: "Proceed with restore" → customer acknowledges → SIGNAL C
-                                Path B: "Speak with data recovery team" → human escalation, HARD STOP
-STATE 3: Card Security      → Check card_expired flag (from T1 in transcript).
-                              If card_expired=1: proactively prompt for new card — do NOT offer card on file.
-                              If card_expired=0 and customer requests new card: collect new card inline.
-                              If card_expired=0 and no new card mentioned: offer card on file as default.
-STATE 4: Payment            → DA2: T3 (card + full balance).
-STATE 5: Fee Waiver         → DA2: T4 (3-rule check). Report $0 or plan-tier late fee + reason.
-STATE 6: Restore            → DA3: T5 (restore account) → T8 (restore receipt).
-STATE 7: Plan Change        → DA4: T9 → T6 → T8 (upgrade/downgrade if requested).
-                              Skipped entirely if customer did not request a plan change.
+ROW 1 — PLAN EXECUTE (highest priority):
+    WHEN: plan_change_requested=1 AND restore_complete=1 AND plan_validated=1
+          AND customer confirms the plan change.
+    DO:   Call DA4 (MODE E — execute). T0_SetSessionState(plan_executed=1). STOP.
+
+ROW 2 — PLAN VALIDATE:
+    WHEN: plan_change_requested=1 AND restore_complete=1 AND plan_validated=0.
+    DO:   Call DA4 (MODE V — validate). Present plan details. T0_SetSessionState(plan_validated=1).
+          STOP — wait for customer confirmation.
+
+ROW 3 — ALL DONE:
+    WHEN: restore_complete=1 AND (plan_change_requested=0 OR plan_executed=1).
+    DO:   Warm close. STOP.
+
+ROW 4 — RESTORE ONLY (safety net):
+    WHEN: payment_cleared=1 AND restore_complete=0.
+    DO:   Call DA3 immediately. T0_SetSessionState(restore_complete=1). STOP.
+
+ROW 5 — AT RISK CHOICE:
+    WHEN: data_safe=0 AND at_risk_disclosed=1 AND at_risk_proceeding=0 AND payment_cleared=0.
+    DO:   Customer has seen AT RISK warning. Check current message:
+          — Chose escalation → route to data recovery team. STOP.
+          — Chose to proceed → T0_SetSessionState(at_risk_proceeding=1).
+            Present card situation (CARD SECURITY). STOP.
+          CRITICAL: "I understand the risk" is NOT payment consent. Do NOT call DA2/DA3 here.
+          Card must still be collected in next turn. One step — STOP.
+
+ROW 6 — PAYMENT + RESTORE:
+    WHEN: payment_cleared=0 AND (data_safe=1 OR at_risk_proceeding=1).
+    DO:   CARD CHECK FIRST: if card_expired=True AND no card number in current message → STOP,
+          present CARD SECURITY. Only proceed if card is confirmed (on file or provided).
+          Then check for payment consent. IF consent + card confirmed:
+          → Call DA2 (payment + fee waiver) AND DA3 (restore) in SAME turn.
+          → T0_SetSessionState(payment_cleared=1, amount_paid=X, new_card_last4=XXXX,
+                               restore_complete=1)
+          → If plan_change_requested=1: ALSO call DA4 (MODE V) same turn.
+            T0_SetSessionState(plan_validated=1)
+          If no consent yet: present card situation. STOP.
+
+ROW 7 — FRESH START (lowest priority):
+    WHEN: data_checked=0 (first turn on this account).
+    DO:   Call DA1 + DA2 IN PARALLEL (data check + balance/fee preview).
+          Scan opening message for plan change intent → capture plan_name_requested,
+          plan_duration_months.
+          T0_SetSessionState(data_checked=1, data_safe=X, days_suspended=N,
+                             project_count=N, plan_change_requested=X,
+                             plan_name_requested=X, plan_duration_months=X,
+                             [at_risk_disclosed=1 if data_safe=0])
+          If data_safe=0: Present AT RISK warning + two paths. HARD STOP.
+          If data_safe=1: Relay results + present card situation for next turn.
 ```
 
-**HANDOFF SIGNALS (priority order — SA1 scans transcript, fires exactly one per turn):**
-- SIGNAL D (highest): Payment consent given → run DA2 payment → DA2 fee check → DA3 restore → DA4 plan change (if requested)
-- SIGNAL F: Restore confirmed in transcript AND plan validation presented AND customer confirms plan change → call DA4 execute
-- SIGNAL E: Data AT RISK reported AND customer chose human escalation → transfer to data recovery team
-- SIGNAL C: Data AT RISK reported AND customer chose to proceed despite risk → acknowledge risk, check card, await consent
-- SIGNAL A (lowest): Fresh start → run balance check + data safety check in one turn
+**session_state fields (15 fields, all default 0/None):**
+`data_checked`, `data_safe`, `days_suspended`, `project_count`, `at_risk_disclosed`,
+`at_risk_proceeding`, `payment_cleared`, `amount_paid`, `new_card_last4`,
+`restore_complete`, `plan_change_requested`, `plan_name_requested`,
+`plan_duration_months`, `plan_validated`, `plan_executed`
 
-**DA3 handoff message format:**
+**DA3 handoff message format (unchanged):**
 - data_safe=True:  `"restore account [id]. [N] projects, [plan_name] plan, amount paid $[X]."`
 - data_safe=False: `"restore account [id]. [N] projects, [plan_name] plan, amount paid $[X]. DATA_AT_RISK=True — do not confirm projects intact."`
 
@@ -325,24 +388,33 @@ STATE 7: Plan Change        → DA4: T9 → T6 → T8 (upgrade/downgrade if requ
 
 ## 9. Coding Patterns — Mandatory (mirror metro_city exactly)
 
-### Yield & Resume (Approach B — Ephemeral State)
-- SA1_RestoreSupervisor has NO session state, NO persistent variables.
-- root_agent passes the FULL conversation transcript to SA1 on EVERY invocation.
-- SA1 reads the transcript and self-determines which state to resume at via HANDOFF SIGNALS.
-- Each AgentTool call (DA1, DA2, DA3) gets a fresh InMemorySession — SA1 reconstructs context
-  from transcript, not from stored state.
-- This is the exact same Approach B used in SA1_Moves_Supervisor in metro_city.
+### Persistent State — Approach C (SQLite session_state table)
+> Replaced Approach B (transcript scanning + HANDOFF SIGNALS) after Phase 5 refactor.
 
-### SA1 HANDOFF SIGNALS (priority order, same pattern as metro_city)
-SA1 scans the transcript for evidence of prior steps and fires exactly one signal per turn:
-```
-SIGNAL D (highest): Payment consent given → execute full chain (pay → fee → restore → plan change)
-SIGNAL F:           Restore confirmed + plan validation shown + customer confirms → DA4 execute
-SIGNAL E:           Data AT RISK reported + customer chose human escalation → transfer
-SIGNAL C:           Data AT RISK reported + customer chose to proceed → check card, await consent
-SIGNAL A (lowest):  Fresh start → balance check + data safety in one turn
-```
-ONE signal fires per turn. HARD STOP after each — never combine steps across signals.
+- `T0_GetSessionState(account_id)` reads all 15 session fields at the start of every
+  SUSPENDED account turn (after T1). Returns defaults (all 0) on first call.
+- `T0_SetSessionState(account_id, **fields)` writes after each completed step. UPSERT.
+- root_agent uses a ROW 1–7 dispatch table instead of scanning the conversation transcript.
+- Each row tests specific state field combinations — deterministic, no hallucination risk.
+- **Why this is better than Approach B:** Transcript scanning required the LLM to re-derive
+  context from natural language on every turn, leading to occasional signal misfire (e.g.,
+  "I understand the risk" triggering SIGNAL D payment consent). SQLite state is ground truth.
+- T0 opens its own DB connection — never injected via functools.partial.
+
+### SA1_DiagnosticSupervisor Pattern (replaces old SA1_RestoreSupervisor)
+- Receives an ambiguous multi-dimensional health complaint from root_agent.
+- STATE 1: Validates account_id from handoff.
+- STATE 2 (ENTRY GUARD): Fan-out — calls DA1 + DA5 + DA6 IN PARALLEL via AgentTool.
+  Fires exactly when all three calls are dispatched. Never fires until STATE 1 complete.
+- STATE 3 (ENTRY GUARD): Waits until ALL THREE agents have returned. Synthesises urgency.
+  Returns PRIMARY_FINDING (storage/integration/account/all_healthy) + severity rating.
+- Callbacks print `SA1 ->` / `SA1 <-` with DA1/DA5/DA6 for terminal visibility.
+- ONE step per response. HARD STOP after each state.
+
+### ARCHIVED: Approach B (Ephemeral State + HANDOFF SIGNALS)
+The original SA1_RestoreSupervisor used transcript scanning with HANDOFF SIGNALS A/C/D/E/F.
+Archived at: `archive/SA1_RestoreSupervisor_REMOVED.py`.
+Approach B is documented in metro_city_demo as the reference implementation.
 
 ### 3-Layer Guardrail Placement (same as metro_city)
 | Layer | Where | What |
@@ -385,8 +457,8 @@ pushing the customer-ready sentence all the way down to T4/DA2 so SA1 just relay
 
 ### DA3_RestoreAgent (Squad Pattern — lean)
 - Fire-and-return. Executes T5 (restore) → T8 (receipt) only. No plan change logic.
-- T5 must succeed before T8 is called (gate enforced).
-- Called by SA1 only. Never by root_agent directly.
+- T5 must succeed before T8 is called (gate enforced in STATE 3 PRE-TOOL GUARD).
+- Called by root_agent directly (not via SA1 — SA1_RestoreSupervisor is archived).
 - Uses gemini-2.5-flash (NOT flash-lite) — same Part(text=None) risk on multi-tool chains.
 
 **DATA_AT_RISK flag:** SA1 includes `DATA_AT_RISK=True` in the DA3 handoff when T2 found
@@ -401,7 +473,8 @@ data_safe=False. DA3 STATE 1 extracts this flag. TRANSITION GUARD branches on it
 - T9 output (new price, storage, direction) feeds both T6 inputs and T8 receipt details.
 - DA4 extracts duration_months from the customer request before calling T6. If customer specified
   a duration ("3 months", "6 months", etc.), passes it to T6. Otherwise passes None (permanent).
-- Called by root_agent (active account plan changes) AND by SA1 (post-restore, STATE 7).
+- Called by root_agent for BOTH active account plan changes AND post-restore plan changes.
+  ROW 6 calls DA4 MODE V (validate) in the same turn as DA2+DA3. ROW 1 calls DA4 MODE E (execute).
 - T6 and T9 live here only — not in DA3.
 - Uses gemini-2.5-flash (upgraded from flash-lite — flash-lite drops the final response on
   3-tool MODE E chains T9→T6→T8, same Part(text=None) bug as DA1/DA2).
@@ -623,3 +696,285 @@ Issues discovered during Persona 1–3 test runs and their resolutions.
 - DA4 T9: validate Business plan upgrade → eligible=True, direction=upgrade, 8 seats < 30 max → seat_count_ok=True
 - T6: upgrade to Business, duration_months=3 → downgrade_date = today + 90 days
 - T8: receipt sent — confirms upgrade + auto-revert date
+
+---
+
+## 15. Phase 5 Additions — Safety, RAG, Chat UI, Logging
+
+All of the following were built after Phase 4 validation. They extend the demo without modifying the core 7-state restore flow.
+
+---
+
+### 15a. Safety Pre-flight (Pillar 4 — Live Critical Path)
+
+**File:** `safety_guard.py`
+**Wired via:** `before_agent_callback` in `agent.py`
+**Fires:** Before the root_agent LLM is invoked on every turn. Synchronous; blocks before the LLM sees the message.
+
+Three-layer check in series:
+
+| Layer | Mechanism | Latency | What it catches |
+|-------|-----------|---------|-----------------|
+| T1 | Python regex (`\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b`) | ~0ms | SSN in standard or variant format |
+| T2a | Azure Content Safety — Prompt Shield | ~80ms | Prompt injection, jailbreak, instruction override |
+| T2b | Azure Content Safety — Text Analyze | ~80ms | Violence, Hate, Sexual, SelfHarm at severity ≥ 4 |
+
+**Fail-open design:** Azure API errors (DNS, timeout, HTTP 5xx) never block a legitimate customer. All errors are logged to `pay_restore.log`.
+
+**Card number exception:** 16-digit card numbers are deliberately NOT blocked. In Phase 1–4 demo mode, customers type card numbers as plain text — this is the standard payment collection flow.
+
+**Block responses (minimal disclosure):**
+- T1 SSN: `"For your security, I can't accept sensitive personal data in chat. Please use your 5-digit account ID."`
+- T2a Injection: `"I'm here to help with your account — what can I assist you with today?"` (no signal to attacker)
+- T2b Violence: `"I'm not able to continue this conversation on that note. If you're in crisis, please reach out to emergency services or a support line in your area."`
+- T2b other: `"I want to help, but I'm not able to continue when messages are sent that way."`
+
+**Layer 1 guardrails also in agent.py instruction** (LLM-layer, fires after safety_guard passes):
+- Financial hardship signals → pause payment, warm escalation to account team
+- Out-of-scope questions → `support@orbit.io` redirect
+- Explicit consent gate → "I guess so" / "maybe" = NOT consent
+
+---
+
+### 15b. RAG Knowledge Base
+
+**Files:** `rag_seed.py` (indexing), `T10_SearchKnowledge.py` (retrieval tool)
+**Vector store:** ChromaDB (PersistentClient, local embedded)
+**Embedding model:** `gemini-embedding-2` (AI Studio API key)
+
+**Knowledge base pages** (`knowledge_base/html/`):
+- `plans_pricing.html` — 4 plan tiers, comparison table, pricing FAQ
+- `billing_payment.html` — AutoPay, late fees, 3-rule waiver eligibility, card update
+- `suspension_reactivation.html` — Causes, 5-step restore flow, 30-day data warning
+- `data_retention.html` — 30-day retention window, visual timeline, export instructions
+- `upgrades_downgrades.html` — Seat checks, upgrade/downgrade, temporary upgrades, effective date
+- `cancellation.html` — Export first, how to cancel, 30-day post-cancel retention, win-back
+
+**Indexing (rag_seed.py):**
+- Reads 6 HTML pages → BeautifulSoup strips tags → sliding window chunker (2000 chars, 200 overlap)
+- Produces ~17 chunks → embeds via gemini-embedding-2 → stored in ChromaDB
+- Full re-index on every run (drop + rebuild). In production: nightly scheduled job.
+- `PAGES` list excludes `index.html` (navigation only, no content).
+
+**Retrieval (T10_SearchKnowledge.py):**
+- Called by root_agent for any general policy/FAQ question (not account-specific)
+- Embeds query → cosine search → returns top-3 chunks with source labels and distances
+- `LOW_CONFIDENCE_THRESHOLD = 0.75` — if best match distance > 0.75, returns `[LOW_CONFIDENCE]` flag
+- Root agent instruction: if `[LOW_CONFIDENCE]`: STOP — do NOT answer from any source (including training data). Use: `"That's not something I have clear details on — I wouldn't want to guess on that. For the most accurate answer, our support team at support@orbit.io is the best resource."`
+
+**RAG gap demo:** Remove `data_retention.html` from PAGES in `rag_seed.py` → rerun seed → ask a data retention question → agent returns graceful fallback. Re-add the page → rerun seed → ask again → correct answer retrieved.
+
+**T10 routing rule:** root_agent must call T10 BEFORE answering any "Can I...?", "Do you...?", "How does...?" question about Orbit policy. Never answer from training knowledge — always retrieve first.
+
+---
+
+### 15c. Polished Chat UI (orbit_chat.html)
+
+**File:** `orbit_chat.html` (project root — open directly in browser)
+**Connects to:** ADK backend (`http://127.0.0.1:8000`) — same API endpoints as `adk web`
+**Brand:** Orbit (`#5b4cf5` purple, clean typography)
+
+**Key features:**
+- SSE streaming via `fetch('/run_sse')` + `ReadableStream` — response streams word-by-word
+- Session init: `POST /apps/pay_restore_demo/users/{userId}/sessions`
+- Typing indicator (3 bouncing dots) while agent is responding
+- Welcome screen with suggestion chips
+- `__CARD_FORM__` trigger: agent sends this token → chat page renders inline secure card form (no redirect)
+  - Masked card number input (`**** **** **** XXXX`)
+  - Client-side Luhn validation (16 digits, mod-10), expiry (MM/YY > today), CVV (3 digits)
+  - On valid submit: form replaced with "✓ Payment Processed · Card ending XXXX"
+  - Sends `{"status": "success", "card_last4": "XXXX"}` back to agent stream
+
+**Help Center link:** `knowledge_base/html/index.html` nav has "✦ Ask Orbit AI" button linking to `orbit_chat.html`.
+
+**Demo mode:** Use `orbit_chat.html` for polished demo. Use `adk web` (http://127.0.0.1:8000) for "behind the scenes" architecture view if interviewer wants to see tool call traces.
+
+---
+
+### 15d. Structured Logging (pay_restore.log)
+
+**File:** `log_setup.py`
+**Log file:** `pay_restore.log` (project root, git-ignored, rotating 5 MB, 3 backups)
+
+Events captured:
+
+| Event | File | Format |
+|-------|------|--------|
+| `PAYMENT_OK / PAYMENT_FAIL` | T3_ProcessPayment.py | account, amount, card_last4, new_card flag |
+| `RESTORE_OK / RESTORE_FAIL` | T5_RestoreAccount.py | account, status |
+| `PLAN_CHANGE_OK / PLAN_CHANGE_FAIL` | T6_ChangePlan.py | account, plan, duration, revert_date |
+| Azure Prompt Shield errors/blocks | safety_guard.py | rule, preview of message |
+| Azure Text Analyze errors/blocks | safety_guard.py | category, severity |
+| T1 SSN block | safety_guard.py | rule=T1/SSN, preview |
+| SA1 empty DA response | SA1_Restore_Supervisor.py | agent name — Part(text=None) bug detection |
+| All DA calls/responses | SA1_Restore_Supervisor.py | DEBUG level |
+
+Console output: WARNING and above only (does not flood terminal). File gets DEBUG and above.
+
+Previously all of this was print-only (lost in `adk web`) or completely silent (Gemini API failures). `pay_restore.log` persists failures across sessions.
+
+---
+
+### 15e. Simulation Test Suite
+
+**Files:**
+- `Agent Sim/simulation_scenarios.md` — 25 primary scenarios in 8 groups with turn scripts and expected outcomes
+- `Agent Sim/secondary_scenarios.md` — 110 edge case scenarios across 17 categories
+- `Agent Sim/run_all_scenarios.py` — automated batch runner (DB reset per scenario, PASS/FAIL/SKIP table)
+- `Agent Sim/run_targeted.py` — targeted runner for specific scenarios only
+- `Agent Sim/test_conversation.py` — original single-persona runner (interactive, DB verification)
+
+**Scenario groups (simulation_scenarios.md):**
+1. Primary restore flows (S01–S02)
+2. Waiver FAIL paths (S03–S06)
+3. Data AT RISK (S07a–S07b)
+4. Active account flows (S08–S10)
+5. Canceled account / win-back (S11)
+6. RAG knowledge questions (S12–S17)
+7. Safety pre-flight (S18–S20)
+8. Edge cases and guardrails (S21–S25)
+
+**Batch runner usage:**
+```powershell
+# From c:\Muru_Workspace:
+python "pay_restore_demo/Agent Sim/run_all_scenarios.py"  # all 26 entries (~50 min)
+python "pay_restore_demo/Agent Sim/run_targeted.py"       # 5 specific scenarios (~10 min)
+```
+Output written to `Agent Sim/batch_run_output.txt` and `Agent Sim/batch_run_errors.txt`.
+
+---
+
+### 15f. Architecture Diagrams
+
+**File:** `architecture.html` (project root — open in browser)
+
+Five Mermaid diagrams (updated for SA1_DiagnosticSupervisor + persistent state):
+1. Full 3-tier agent architecture — root + DA1–DA6 + SA1_DiagnosticSupervisor, T10 RAG path
+2. Safety pre-flight sequence (T1 → T2a → T2b, fail-open paths)
+3. RAG pipeline — offline indexing vs online retrieval, confidence threshold
+4. SA1_DiagnosticSupervisor fan-out — parallel DA1/DA5/DA6, urgency synthesis
+5. root_agent ROW 1–7 dispatch table with persistent state (replaces old Approach B diagram)
+
+---
+
+## 16. Phase 5 Issues Found & Fixed
+
+Issues discovered during batch simulation runs (run_all_scenarios.py) and their resolutions.
+
+| Issue | Root Cause | Fix Applied |
+|-------|-----------|-------------|
+| SA1 SIGNAL A doesn't include waiver reason when customer asks about fees | SIGNAL A cost disclosure just stated amount, not DA2's reason sentence | SA1 SIGNAL A COST DISCLOSURE updated: when waiver_granted=False AND customer mentioned fees, relay DA2's reason clause verbatim |
+| SA1 SIGNAL D not firing on "restore us now" (S02) | Consent word list only included "yes/go ahead/confirm/restore it" — not "restore us" variants | Added "restore us", "restore us now", "get it restored", "proceed", "charge it" to SIGNAL D trigger list |
+| SA1 SIGNAL D Step 4 not including dashboard language on AT RISK restore | SA1 not reliably detecting data_safe=False from transcript context | Step 4 instruction strengthened: explicit transcript scan for "AT RISK" / "exceeds our 30-day" language; NEVER say "N projects intact" on AT RISK path |
+| Agent answers annual billing question from training data, ignores [LOW_CONFIDENCE] | Model decided it "knew" the answer and skipped T10 entirely | T10 routing made mandatory: "ALWAYS call T10 FIRST — never answer policy questions from training data." [LOW_CONFIDENCE] response tightened: "STOP. Do NOT answer from any source." |
+| Out-of-scope response used wrong email | agent.py Layer 1 out-of-scope template had `support@platform.com` | Fixed to `support@orbit.io` |
+| Transient DNS / ClientPayloadError on Gemini API | Network instability during batch run | run_all_scenarios.py now retries once on network errors (5s delay before retry) |
+| ChromaDB install lock error on Windows | `[WinError 32]` on kubernetes package during pip install | Fixed: `pip install chromadb beautifulsoup4 --user` |
+| `text-embedding-004` model not found | Not available via AI Studio API key | Corrected to `gemini-embedding-2` in both rag_seed.py and T10_SearchKnowledge.py |
+
+---
+
+## 17. Architecture Evolution — Post-Phase-5 Changes
+
+Summary of all significant changes made after the initial Phase 5 build.
+
+### 17a. Agent Renames
+
+| Old Name | New Name | File |
+|----------|----------|------|
+| SA2_DiagnosticSupervisor | SA1_DiagnosticSupervisor | SA1_Diagnostic_Supervisor.py |
+| DA_StorageAgent | DA5_StorageAgent | DA5_Storage_Agent.py |
+| DA_IntegrationAgent | DA6_IntegrationAgent | DA6_Integration_Agent.py |
+| SA1_RestoreSupervisor | (archived) | archive/SA1_RestoreSupervisor_REMOVED.py |
+
+**Reason for renaming:** There is now only ONE supervisor (SA1_DiagnosticSupervisor). The old SA2
+name was pre-emptively numbered assuming a second supervisor slot; that was eliminated. DA5/DA6
+numbering keeps the tool-to-agent mapping consistent with T11/T12.
+
+### 17b. Persistent State (Approach C)
+
+**Replaced:** Approach B (SA1_RestoreSupervisor + HANDOFF SIGNALS A/C/D/E/F)
+**With:** SQLite `session_state` table + T0_GetSessionState / T0_SetSessionState + ROW 1–7 dispatch
+
+**Why replaced:**
+- Transcript scanning was probabilistic — the LLM re-derived state from natural language each turn.
+- Multiple misfire patterns required progressive instruction patching (SIGNAL D word list expansion,
+  AT RISK language detection strengthening, step-merging prevention).
+- SQLite state is deterministic: ROW conditions are boolean flag comparisons, not NLP.
+
+**New files:**
+- `agents_tools_db/T0_SessionState.py` — T0_GetSessionState + T0_SetSessionState + smoke test
+- `session_state` table added to `z_reset_world.py` (15 fields + updated_at timestamp)
+
+**agent.py changes:**
+- Added `t0g_tool = FunctionTool(T0_GetSessionState)` and `t0s_tool = FunctionTool(T0_SetSessionState)`
+- 11 tools total in root_agent
+- Full SIGNAL A/B/C/D/E/P instruction block replaced with ROW 1–7 dispatch table
+
+### 17c. State Machine Pattern Fixes
+
+**DA2 — PRE-TOOL GUARD labels added to:**
+- STATE 2: T7 balance check — `account_id valid, T3 must NOT be called`
+- STATE 4: T3 payment — `account_id valid, new_card_last4 must be 4-digit string if provided`
+- STATE 5: T4 fee waiver — `account_id valid, T3 must NOT be called`
+- STATE 6: fee result relay — `fee result from T4 only — never infer from prior context`
+
+**DA3 — PRE-TOOL GUARD added to STATE 3 (T8 receipt):**
+- T5 must have returned success in STATE 2. Never call T8 on a failed restore.
+
+**SA1_DiagnosticSupervisor — ENTRY GUARD added to:**
+- STATE 2: `account_id confirmed from STATE 1. Proceeding with full diagnostic.`
+- STATE 3: `All three AgentTool calls in STATE 2 have returned. Never synthesise until all three respond.`
+
+### 17d. ROW 5/ROW 6 Card Collection Gate
+
+**Bug found (Phase 6 validation):** On the AT RISK path, when customer said "I understand the
+risk, I want to proceed" in Turn 2, the agent simultaneously set `at_risk_proceeding=1` AND
+ran payment + restore in the same turn — hallucinating a card number since none was provided.
+
+**Root cause:** The word "proceed" triggered both ROW 5 (at_risk_proceeding logic) AND ROW 6
+(consent check) in the same turn. ROW 5 said "STOP after card situation" but the model found
+"proceed" in the message and also satisfied the ROW 6 consent check.
+
+**Fix applied to agent.py:**
+- ROW 5: Added CRITICAL note — `"I understand the risk" is NOT payment consent. Do NOT call
+  DA2 or DA3 in this turn.`
+- ROW 6: Added CARD CHECK FIRST gate — if `card_expired=True AND no card number in current
+  message → present CARD SECURITY and STOP`. Do not call DA2 without a confirmed card.
+
+**Validated fix:** Persona 3 (Sam 20003, data AT RISK, card 5517 expired):
+- Turn 1: AT RISK warning + two paths ✅
+- Turn 2: "I understand the risk, proceed" → `at_risk_proceeding=1` set, card asked ✅
+- Turn 3: card 9988 + consent → $129 charged, fee waived (14mo), restore ACTIVE,
+  no "28 projects intact" claim → dashboard language used ✅
+
+### 17e. Chat UI — orbit_chat.html
+
+**Moved:** `Project Files/orbit_chat.html` → `orbit_chat.html` (project root)
+**Reason:** `knowledge_base/html/index.html` nav links to `../../orbit_chat.html` which resolves
+correctly to `pay_restore_demo/orbit_chat.html` from the project root.
+
+**`__CARD_FORM__` instruction added to agent.py CARD SECURITY section:**
+- MODE A (orbit_chat.html): agent emits `__CARD_FORM__` token → chat page renders inline form
+  → customer fills in → Luhn validation → `{"status": "success", "card_last4": "XXXX"}` returned
+  → agent extracts last4 and passes to DA2.
+- MODE B (test/adk web): customer types card number as text → agent extracts last 4 digits.
+- Detection: if current message contains a 16-digit number → MODE B. Otherwise → MODE A.
+
+### 17f. No Fraud Squad Agent
+
+**Decision:** Fraud squad agent (DA_FraudAgent) was planned but not built.
+**Reason:** DA3 and DA4 already demonstrate the squad pattern (fixed sequential tool chains,
+fire-and-return, no customer interaction between steps). The only novel concept a fraud agent
+would add — Layer 1 block as a side-effect trigger — can be described verbally during demo.
+Adding it would add implementation complexity without demonstrating a new pattern.
+
+### 17g. Validation Results (this session)
+
+| Persona | Account | Scenario | Result |
+|---------|---------|----------|--------|
+| 1 | Alex 20001 | Primary happy path — data SAFE, card expired, waiver PASS, Business upgrade 3mo | PASS |
+| 3 | Sam 20003 | Data AT RISK — 35 days, card expired, waiver PASS, no plan change | PASS (after ROW 5/6 fix) |
+
+**test_conversation.py DB path fix:** Changed `_db_path` from `_project_dir/pay_restore.db` to
+`_project_dir/agents_tools_db/pay_restore.db` so the post-run DB verification reads the correct file.

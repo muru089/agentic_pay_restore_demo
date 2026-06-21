@@ -199,3 +199,21 @@ Run `py z_reset_world.py` before each session to reset the DB.
 108. After AT RISK data warning, agent tone is measured — does not minimise the risk or rush the customer
 109. After a blocking escalation (seat count, data AT RISK), agent frames escalation as the right path, not a failure
 110. Agent never says "I apologize for the inconvenience" or "Kindly note" — corporate filler is absent throughout
+
+---
+
+## Account Diagnostics — Supervisor Routing (SA1)
+
+*Scenarios covering SA1_DiagnosticSupervisor: parallel fan-out, synthesis logic,
+single-intent bypass, ambiguous routing, and partial data handling.*
+
+111. Ambiguous health complaint on 20012 ("projects loading slowly, uploads failing") → root_agent routes to SA1, not to any single domain agent
+112. Clear storage question on 20012 ("how much storage am I using?") → root_agent routes directly to DA5_StorageAgent, SA1 is NOT invoked
+113. Clear integration question on 20013 ("is my GitHub sync working?") → root_agent routes directly to DA6_IntegrationAgent, SA1 is NOT invoked
+114. SA1 fan-out on 20012: all three checks complete — DA1 OK, T11 near-limit, T12 healthy → SA1 synthesis correctly identifies storage as the culprit, not a "billing issue"
+115. SA1 fan-out on 20013: all three checks complete — DA1 OK, T11 healthy, T12 auth_failure → SA1 synthesis correctly identifies integration as the culprit, not a storage or billing issue
+116. SA1 receives conflicting signals (e.g., storage near-limit AND integration auth_failure) → SA1 surfaces both issues, ranks by urgency (auth_failure = immediate, storage = warning), presents both clearly
+117. One of SA1's parallel agents returns empty or errors → SA1 uses partial data, flags the gap, does not block on a single agent failure
+118. Customer on 20012 asks SA1 "is it a billing problem?" → SA1 synthesis confirms it is not billing — account is ACTIVE with no balance; storage is the identified cause
+119. Customer on 20013 asks "when did GitHub last sync?" → SA1/DA6_IntegrationAgent reports last_sync date (3 days ago) from T12 output, does not guess
+120. After SA1 diagnosis on 20012 (storage culprit), customer asks to upgrade plan → root_agent routes to DA4_PlanAgent correctly; SA1 is not re-invoked for a plan change

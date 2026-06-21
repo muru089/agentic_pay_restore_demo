@@ -25,6 +25,9 @@ OUTPUT:
 """
 
 import sqlite3
+from .log_setup import get_logger
+
+_log = get_logger("tool.T3")
 
 
 def T3_ProcessPayment(conn, account_id, new_card_last4=None):
@@ -72,6 +75,10 @@ def T3_ProcessPayment(conn, account_id, new_card_last4=None):
 
         conn.commit()
 
+        _log.info(
+            f"PAYMENT_OK  account={account_id}  amount={pending_balance:.2f}"
+            f"  card_last4={card_last4_used}  new_card={'yes' if new_card_last4 else 'no'}"
+        )
         return {
             "status":         "success",
             "amount_charged": pending_balance,
@@ -79,6 +86,7 @@ def T3_ProcessPayment(conn, account_id, new_card_last4=None):
         }
 
     except sqlite3.Error as e:
+        _log.error(f"PAYMENT_FAIL  account={account_id}  error={e}")
         return {"status": "error", "message": str(e)}
 
 

@@ -3,23 +3,19 @@ pay_restore_demo
 ----------------
 Multi-agent SaaS demo for suspended account restore, built with Google ADK.
 
-Entry point: agent.py (root_agent)
+Architecture:
+    Uber:         agents_tools_db/agent.py (root_agent)   gemini-2.5-flash
+    Domain:       DA1_Account_Agent, DA2_Billing_Agent    gemini-2.5-flash
+    Squad:        DA3_Restore_Agent                       gemini-2.5-flash
+    Squad/Shared: DA4_Plan_Agent                          gemini-2.5-flash
 
-3-Tier Architecture:
-    Uber:       agent.py (root_agent)           gemini-2.0-flash
-    Supervisor: SA1_Restore_Supervisor          gemini-2.0-flash
-    Domain:     DA1_Account_Agent               gemini-2.0-flash-lite
-                DA2_Billing_Agent               gemini-2.0-flash-lite
-    Squad:      DA3_Restore_Agent               gemini-2.0-flash
-    Squad/Shared: DA4_Plan_Agent                gemini-2.0-flash-lite
+Tools: T1 through T10 (see CLAUDE.md for full reference)
+Database: agents_tools_db/pay_restore.db
 
-Tools: T1 through T9 (see CLAUDE.md for full reference)
-
-Database: pay_restore.db (2 tables: plan_catalog, customer_accounts)
-
-To reset the database to its original state:
-    py pay_restore_demo/z_reset_world.py
-
-To launch the ADK web UI (run from c:\\Muru_Workspace — the parent directory):
-    adk web
+Reset DB:  py "pay_restore_demo/z_reset_world.py"
+Run demo:  adk web  (from c:\\Muru_Workspace)
 """
+
+from .agents_tools_db.agent import root_agent
+
+__all__ = ["root_agent"]

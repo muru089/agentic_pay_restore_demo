@@ -29,6 +29,9 @@ OUTPUT:
 
 import sqlite3
 from datetime import date, timedelta
+from .log_setup import get_logger
+
+_log = get_logger("tool.T6")
 
 
 def T6_ChangePlan(conn, account_id, new_plan_name, duration_months=None):
@@ -74,6 +77,10 @@ def T6_ChangePlan(conn, account_id, new_plan_name, duration_months=None):
         else:
             msg = f"Plan updated to {new_plan_name} (permanent)."
 
+        _log.info(
+            f"PLAN_CHANGE_OK  account={account_id}  new_plan={new_plan_name}"
+            f"  duration_months={duration_months}  revert_date={downgrade_date}"
+        )
         return {
             "status":         "success",
             "account_id":     account_id,
@@ -83,6 +90,7 @@ def T6_ChangePlan(conn, account_id, new_plan_name, duration_months=None):
         }
 
     except sqlite3.Error as e:
+        _log.error(f"PLAN_CHANGE_FAIL  account={account_id}  plan={new_plan_name}  error={e}")
         return {"status": "error", "message": str(e)}
 
 

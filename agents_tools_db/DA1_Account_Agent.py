@@ -4,11 +4,11 @@ DA1_Account_Agent.py  --  da1_account_agent
 
 AGENT TIER: Domain Agent (DA1)
 -------------------------------
-Owns the account data boundary. Called by SA1 to check data retention
+Owns the account data boundary. Called by root_agent to check data retention
 safety for suspended accounts.
 
 T1 (auth) lives in root_agent — NOT duplicated here. DA1 receives account_id
-from SA1's handoff message and runs T2 directly.
+from root_agent's handoff message and runs T2 directly.
 
 TOOLS AVAILABLE:
     T2_CheckDataRetention -- Calculates days_suspended. Returns data_safe,
@@ -18,13 +18,20 @@ TOOLS AVAILABLE:
 import os
 import sqlite3
 import functools
+from typing import Any
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
+from google.adk.tools.base_tool import BaseTool
+from google.adk.agents.callback_context import CallbackContext
 
 from .T2_CheckDataRetention import T2_CheckDataRetention
+from .log_setup             import get_logger
+
+_log = get_logger("da1")
+_SEP = "-" * 64
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'pay_restore.db')
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)
 
 
 def create_db_tool(func, tool_name, description):
@@ -45,16 +52,39 @@ t2_tool = create_db_tool(
 )
 
 
+# ── Step log callbacks ─────────────────────────────────────────────────────
+def _before_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackContext):
+    req = str(args)[:120].replace("\n", " ")
+    print(f"\n{_SEP}")
+    print(f"  DA1 -> {tool.name}")
+    print(f"  REQ: {req}...")
+    print(_SEP)
+    _log.debug(f"CALL  tool={tool.name}  args={req[:80]}")
+    return None
+
+
+def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackContext, tool_response: Any):
+    resp = str(tool_response)[:160].replace("\n", " ")
+    print(f"\n{_SEP}")
+    print(f"  DA1 <- {tool.name}")
+    print(f"  RSP: {resp}...")
+    print(_SEP)
+    _log.debug(f"RESP  tool={tool.name}  rsp={resp[:80]}")
+    return None
+
+
 da1_account_agent = Agent(
     name="DA1_AccountAgent",
     model="gemini-2.5-flash",
     tools=[t2_tool],
+    before_tool_callback=_before_tool,
+    after_tool_callback=_after_tool,
     instruction="""
 You are the Account Data Specialist for the Pay Restore SaaS platform.
 
 YOUR ROLE:
     Check data retention safety for suspended accounts.
-    Called by SA1_RestoreSupervisor with one task per invocation.
+    Called by root_agent with one task per invocation.
     Execute precisely and return a clean result.
 
 ================================================================================

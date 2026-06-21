@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pay Restore Demo — Architecture</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f7f8fc;
+    color: #1a1a2e;
+    padding: 40px 32px 80px;
+  }
+  h1 {
+    font-size: 28px; font-weight: 700; color: #5b4cf5;
+    margin-bottom: 6px; letter-spacing: -0.5px;
+  }
+  .subtitle { font-size: 14px; color: #6b7280; margin-bottom: 48px; }
+  .section {
+    background: #fff; border-radius: 16px;
+    box-shadow: 0 2px 16px rgba(91,76,245,0.08);
+    border: 1px solid #ececf3;
+    padding: 32px 40px 36px;
+    margin-bottom: 32px;
+  }
+  .section h2 {
+    font-size: 18px; font-weight: 700; color: #1a1a2e;
+    margin-bottom: 4px;
+  }
+  .section .desc {
+    font-size: 13px; color: #6b7280; margin-bottom: 24px; line-height: 1.6;
+  }
+  .mermaid { overflow-x: auto; }
+
+  /* Legend chips */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin-top: 20px; padding-top: 20px;
+    border-top: 1px solid #ececf3;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: #374151;
+    background: #f3f4f6; border-radius: 20px;
+    padding: 4px 12px;
+  }
+  .dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>Pay Restore Demo — Architecture</h1>
+<p class="subtitle">Multi-agent Google ADK · 3-tier orchestration · gemini-2.5-flash · Safety pre-flight · RAG knowledge base · Diagnostic Supervisor</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIAGRAM 1 — Full agent architecture                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>1 · Full Agent Architecture</h2>
+  <p class="desc">
+    3-tier structure: <strong>Uber</strong> (root_agent) owns auth, safety, routing, and restore sequencing via Approach B (transcript-driven signals — no persistent state).
+    <strong>Supervisor</strong> (SA1_DiagnosticSupervisor) handles ambiguous multi-dimensional health complaints by fanning out DA1, DA5_StorageAgent, and DA6_IntegrationAgent in parallel, then synthesising urgency to surface the highest-impact finding.
+    Single-intent diagnostic queries (storage only / integration only) bypass SA1 and route directly from root.
+    <strong>Domain / Squad</strong> agents own tool execution and enforce their own prerequisite gates.
+    DA4 is shared — called by root_agent for both active-account plan changes and post-restore upgrades.
+    DA1 is also shared — called by root_agent (SIGNAL A restore path) and by SA1 (diagnostic fan-out).
+  </p>
+  <div class="mermaid">
+graph TD
+
+  %% ── Customer ─────────────────────────────────────────────────────────
+  USER(["👤 Customer message"])
+
+  %% ── Safety pre-flight ────────────────────────────────────────────────
+  subgraph SAFETY ["🛡️ Safety Pre-flight  (before_agent_callback)"]
+    direction LR
+    T1r["T1 · SSN regex  ~0ms"]
+    T2a["T2a · Azure Prompt Shield\ninjection / jailbreak  ~80ms"]
+    T2b["T2b · Azure Text Analyze\ntoxicity / hate / violence  ~80ms"]
+    T1r --> T2a --> T2b
+  end
+
+  BLOCKED(["🚫 Blocked response"])
+
+  %% ── Uber root_agent (bare node — no subgraph to avoid layout drift) ──
+  ROOT["🟣 root_agent  (Uber — gemini-2.5-flash)\nauth · routing · restore sequencing — Approach B\nLayer 1 input guardrail · Layer 3 output guardrail"]
+
+  %% ── root_agent direct tools ──────────────────────────────────────────
+  subgraph DTOOLS ["root_agent · Direct Tools"]
+    direction LR
+    T1t["🔑 T1_GetAccount\nauth lookup on every turn\nreturns: name · plan · status\ncard info · suspension_date"]
+    T10t["📚 T10_SearchKnowledge  (RAG)\nquery embed: gemini-embedding-2\nvector store: ChromaDB PersistentClient\ncosine search · top-3 chunks\nconfidence threshold: 0.75\n[LOW_CONFIDENCE] → graceful fallback"]
+  end
+
+  %% ── Supervisor ───────────────────────────────────────────────────────
+  SA1["🔶 SA1_DiagnosticSupervisor  (gemini-2.5-flash)\nambiguous multi-dim complaint → ∥ fan-out\nDA1 · DA5_Storage · DA6_Integration\nsynthesise urgency → route to highest-impact finding"]
+
+  %% ── Domain / Squad agents — restore path ─────────────────────────────
+  subgraph DA1B ["DA1 · AccountAgent  ★ Shared"]
+    direction TB
+    DA1["DA1_AccountAgent"]
+    T2["T2_CheckDataRetention"]
+    DA1 --> T2
+  end
+
+  subgraph DA2B ["DA2 · BillingAgent"]
+    direction TB
+    DA2["DA2_BillingAgent\nconsent gate · balance gate"]
+    T7["T7_GetBalance"]
+    T3["T3_ProcessPayment"]
+    T4["T4_CheckFeeWaiver"]
+    DA2 -->|"preview"| T7
+    DA2 -->|"payment"| T3
+    T7 -->|"seq"| T4
+    T3 -->|"seq"| T4
+  end
+
+  subgraph DA3B ["DA3 · RestoreAgent  Squad"]
+    direction TB
+    DA3["DA3_RestoreAgent\nrequires: payment + SUSPENDED"]
+    T5["T5_RestoreAccount"]
+    T8a["T8_SendReceipt"]
+    DA3 --> T5 -->|"seq"| T8a
+  end
+
+  subgraph DA4B ["DA4 · PlanAgent  Squad  ★ Shared"]
+    direction TB
+    DA4["DA4_PlanAgent\nMODE V / MODE E · requires: ACTIVE"]
+    T9["T9_ValidatePlanChange"]
+    T6["T6_ChangePlan"]
+    T8b["T8_SendReceipt"]
+    DA4 --> T9 -->|"eligible · seq"| T6 -->|"seq"| T8b
+  end
+
+  %% ── Domain agents — diagnostic path ──────────────────────────────────
+  subgraph DA_STB ["DA5 · StorageAgent"]
+    direction TB
+    DA5["DA5_StorageAgent"]
+    T11["T11_CheckStorage\nused_gb · plan_limit_gb\nnear_limit (threshold 90%)\nheadroom_gb"]
+    DA5 --> T11
+  end
+
+  subgraph DA_IGB ["DA6 · IntegrationAgent"]
+    direction TB
+    DA6["DA6_IntegrationAgent"]
+    T12["T12_CheckIntegration\nintegration_name · status\nlast_sync · auth_failures\naction_required flag"]
+    DA6 --> T12
+  end
+
+  %% ── Flow ─────────────────────────────────────────────────────────────
+  USER --> SAFETY
+  SAFETY -->|"pass"| ROOT
+  SAFETY -->|"block"| BLOCKED
+
+  ROOT -->|"every turn"| T1t
+  ROOT -->|"FAQ · policy"| T10t
+
+  ROOT -->|"SIGNAL A  ∥ parallel"| DA1
+  ROOT -->|"SIGNAL A  ∥ parallel"| DA2
+  ROOT -->|"SIGNAL D  seq after DA2"| DA3
+  ROOT -->|"SIGNAL P · ACTIVE plan change"| DA4
+
+  ROOT -->|"ambiguous\nhealth complaint"| SA1
+  ROOT -->|"single-intent\nstorage query"| DA5
+  ROOT -->|"single-intent\nintegration query"| DA6
+
+  SA1 -->|"∥ parallel"| DA1
+  SA1 -->|"∥ parallel"| DA5
+  SA1 -->|"∥ parallel"| DA6
+
+  %% ── Styles ───────────────────────────────────────────────────────────
+  classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
+  classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
+  classDef domain     fill:#dcfce7,stroke:#16a34a,color:#1a1a2e,font-weight:600
+  classDef tool       fill:#f3f4f6,stroke:#9ca3af,color:#374151,font-size:12px
+  classDef ragtool    fill:#dbeafe,stroke:#2563eb,color:#1a1a2e,font-size:12px
+  classDef authtool   fill:#faf5ff,stroke:#7c3aed,color:#1a1a2e,font-size:12px
+  classDef safety     fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
+  classDef block      fill:#fee2e2,stroke:#dc2626,color:#991b1b
+
+  class ROOT uber
+  class SA1 supervisor
+  class DA1,DA2,DA3,DA4,DA5,DA6 domain
+  class T2,T3,T4,T5,T6,T7,T8a,T8b,T9,T11,T12 tool
+  class T10t ragtool
+  class T1t authtool
+  class T1r,T2a,T2b safety
+  class BLOCKED block
+  </div>
+
+  <div class="legend">
+    <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>Uber (root_agent)</span>
+    <span class="chip"><span class="dot" style="background:#ea580c;"></span>Supervisor (SA1 — parallel fan-out + synthesis)</span>
+    <span class="chip"><span class="dot" style="background:#16a34a;"></span>Domain / Squad Agent</span>
+    <span class="chip"><span class="dot" style="background:#7c3aed;"></span>Auth tool (T1)</span>
+    <span class="chip"><span class="dot" style="background:#2563eb;"></span>RAG tool (T10)</span>
+    <span class="chip"><span class="dot" style="background:#ca8a04;"></span>Safety pre-flight</span>
+    <span class="chip"><span class="dot" style="background:#9ca3af;"></span>Tool (DB / API)</span>
+    <span class="chip"><span class="dot" style="background:#dc2626;"></span>Blocked</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIAGRAM 2 — Safety pre-flight                                          -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>2 · Safety Pre-flight  (before_agent_callback)</h2>
+  <p class="desc">
+    Fires synchronously on every turn <em>before</em> the root_agent LLM is invoked.
+    Three layers in series: regex → Azure Prompt Shield → Azure Text Analyze.
+    Any block short-circuits the chain and returns a canned response directly —
+    the LLM never sees the message. All layers <strong>fail-open</strong>: Azure errors never block a legitimate customer.
+    Blocks and API errors are logged to <code>pay_restore.log</code>.
+  </p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U  as 👤 Customer
+  participant CB as before_agent_callback
+  participant T1 as T1 · SSN regex
+  participant T2a as T2a · Azure Prompt Shield
+  participant T2b as T2b · Azure Text Analyze
+  participant LLM as root_agent LLM
+
+  U->>CB: message arrives
+
+  CB->>T1: check SSN pattern (XXX-XX-XXXX)
+  alt SSN detected
+    T1-->>U: "For your security, use your 5-digit account ID."
+    Note over T1,U: BLOCKED — LLM never invoked
+  else no SSN
+    T1->>T2a: forward message (~80ms)
+  end
+
+  alt Azure error / timeout
+    T2a-->>T2a: log error, fail open
+    T2a->>T2b: continue
+  else injection/jailbreak detected
+    T2a-->>U: "I'm here to help — what can I assist you with today?"
+    Note over T2a,U: BLOCKED
+  else clean
+    T2a->>T2b: forward message (~80ms)
+  end
+
+  alt Azure error / timeout
+    T2b-->>T2b: log error, fail open
+    T2b->>LLM: pass through
+  else Violence / Hate / SelfHarm ≥ severity 4
+    T2b-->>U: crisis response or "not able to continue"
+    Note over T2b,U: BLOCKED
+  else clean
+    T2b->>LLM: pass (status = "pass")
+  end
+
+  LLM-->>U: normal agent response
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIAGRAM 3 — RAG knowledge base                                         -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>3 · RAG Knowledge Base</h2>
+  <p class="desc">
+    Two separate pipelines: an <strong>offline indexing job</strong> (rag_seed.py) and an
+    <strong>online retrieval tool</strong> (T10_SearchKnowledge). The indexing job is re-run
+    whenever the HTML help center pages are updated — in production this would be a nightly scheduled job.
+    T10 is called by root_agent for any general policy or FAQ question that doesn't require account lookup.
+  </p>
+  <div class="mermaid">
+flowchart LR
+
+  subgraph OFFLINE ["📥  Offline — rag_seed.py  (nightly / on-demand)"]
+    direction TB
+    HTML["7 HTML\nHelp Center pages"]
+    BS["BeautifulSoup\nstrip tags → plain text"]
+    CHUNK["Sliding window chunker\n2000 chars · 200 overlap\n→ 22 chunks"]
+    EMBED_O["gemini-embedding-2\nEmbed each chunk"]
+    CHROMA[("ChromaDB\nPersistentClient\nvector store")]
+    HTML --> BS --> CHUNK --> EMBED_O --> CHROMA
+  end
+
+  subgraph ONLINE ["🔍  Online — T10_SearchKnowledge  (per query)"]
+    direction TB
+    QUERY["Customer question"]
+    EMBED_Q["gemini-embedding-2\nEmbed query"]
+    SEARCH["ChromaDB cosine search\ntop-3 chunks"]
+    THRESH{{"distance\n> 0.75?"}}
+    LOW["[LOW_CONFIDENCE]\nreturn fallback flag"]
+    RESULT["Return top-3 chunks\nwith source labels"]
+    QUERY --> EMBED_Q --> SEARCH --> THRESH
+    THRESH -->|"yes — weak match"| LOW
+    THRESH -->|"no — strong match"| RESULT
+  end
+
+  subgraph ROOT ["root_agent response"]
+    direction TB
+    ANS["Answer from retrieved content\n(no fabrication)"]
+    FALL["Graceful fallback\n'support@orbit.io is the best resource'"]
+  end
+
+  CHROMA -.->|"query at runtime"| SEARCH
+  RESULT --> ANS
+  LOW --> FALL
+
+  classDef store fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e
+  classDef model fill:#dbeafe,stroke:#2563eb,color:#1a1a2e
+  classDef resp  fill:#dcfce7,stroke:#16a34a,color:#1a1a2e
+  classDef warn  fill:#fee2e2,stroke:#dc2626,color:#991b1b
+
+  class CHROMA store
+  class EMBED_O,EMBED_Q model
+  class ANS resp
+  class LOW,FALL warn
+  </div>
+  <div class="legend">
+    <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>ChromaDB vector store</span>
+    <span class="chip"><span class="dot" style="background:#2563eb;"></span>Gemini embedding model</span>
+    <span class="chip"><span class="dot" style="background:#16a34a;"></span>Strong match → answer</span>
+    <span class="chip"><span class="dot" style="background:#dc2626;"></span>Weak match → graceful fallback</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIAGRAM 4 — root_agent restore sequencing (Approach B)                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>4 · root_agent — Restore Sequencing  (Approach B)</h2>
+  <p class="desc">
+    root_agent has no persistent session state. On every turn it reads the <em>full conversation transcript</em>
+    and self-determines which step to fire next via HANDOFF SIGNALS (priority order: P → D → E → C → B → A).
+    Exactly <strong>one signal fires per turn</strong> — never two. Each domain agent enforces its own prerequisite gate
+    and returns a structured result; root_agent relays to the customer and advances to the next signal on the following turn.
+  </p>
+  <div class="mermaid">
+flowchart TD
+
+  START(["Suspended account turn starts\nroot_agent reads transcript"])
+
+  SIG{{"Scan transcript —\nwhich SIGNAL fires?"}}
+  START --> SIG
+
+  SIGP["SIGNAL P — Plan execute\n(highest priority)\nDA3 confirmed restore AND\nplan validation shown AND\ncustomer confirmed"]
+  SIGD["SIGNAL D — Payment + restore\nCard context established AND\nexplicit consent given"]
+  SIGE["SIGNAL E — AT RISK escalate\nAT RISK shown AND\ncustomer chose specialist"]
+  SIGC["SIGNAL C — AT RISK proceed\nAT RISK shown AND\ncustomer chose to proceed"]
+  SIGB["SIGNAL B — AT RISK relay\nDA1 returned AT RISK,\ncustomer hasn't responded yet"]
+  SIGA["SIGNAL A — Fresh start\n(lowest priority)\nNo prior DA1 / DA2 responses"]
+
+  SIG -->|"P"| SIGP
+  SIG -->|"D"| SIGD
+  SIG -->|"E"| SIGE
+  SIG -->|"C"| SIGC
+  SIG -->|"B"| SIGB
+  SIG -->|"A"| SIGA
+
+  %% ── SIGNAL A flow ────────────────────────────────────────────────────
+  SIGA --> PARA["DA1 + DA2 in parallel\nDA1: T2 data retention check\nDA2: T7 balance + T4 fee preview"]
+  PARA --> SAFE{{"DA1: data_safe?"}}
+  SAFE -->|"True"| SAFEOUT["Relay: data safe · N projects intact\nBalance · fee status\nCard situation → await consent\nHARD STOP"]
+  SAFE -->|"False"| SIGB
+
+  %% ── SIGNAL B flow ────────────────────────────────────────────────────
+  SIGB --> ATOUT["Relay AT RISK notice\n'35 days exceeds 30-day window'\nPresent two paths:\n  A — proceed with restore\n  B — data recovery specialist\nHARD STOP"]
+
+  %% ── SIGNAL C flow ────────────────────────────────────────────────────
+  SIGC --> CARDCK{{"card_expired?"}}
+  CARDCK -->|"True"| NEWCARD["Prompt for new card\n'card ending XXXX is expired'\nHARD STOP"]
+  CARDCK -->|"False"| OFFERCARD["Offer card on file\n'card ending XXXX — confirm?'\nHARD STOP"]
+
+  %% ── SIGNAL E flow ────────────────────────────────────────────────────
+  SIGE --> ESC(["🤝 Human escalation\nData recovery team\nHARD STOP"])
+
+  %% ── SIGNAL D flow ────────────────────────────────────────────────────
+  SIGD --> DA2PAY["DA2 · T3_ProcessPayment + T4_CheckFeeWaiver\n(prerequisite gate: consent must be in message)"]
+  DA2PAY --> DA3REST["DA3 · T5_RestoreAccount → T8_SendReceipt\n(prerequisite gate: payment confirmation in handoff)"]
+  DA3REST --> PLANQ{{"Plan change\nrequested?"}}
+  PLANQ -->|"yes"| DA4VAL["DA4 MODE V · T9_ValidatePlanChange\nReturn price · storage · seats\nHARD STOP (await SIGNAL P)"]
+  PLANQ -->|"no"| DONE(["✅ Restore complete\nClose conversation"])
+
+  %% ── SIGNAL P flow ────────────────────────────────────────────────────
+  SIGP --> DA4EXE["DA4 MODE E · T9 → T6_ChangePlan → T8_SendReceipt\n(prerequisite gate: ACTIVE status in handoff)"]
+  DA4EXE --> DONE
+
+  %% ── Styles ───────────────────────────────────────────────────────────
+  classDef signal  fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
+  classDef action  fill:#dbeafe,stroke:#2563eb,color:#1a1a2e
+  classDef stop    fill:#dcfce7,stroke:#16a34a,color:#1a1a2e
+  classDef risk    fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
+  classDef esc     fill:#fee2e2,stroke:#dc2626,color:#991b1b
+  classDef gate    fill:#f3f4f6,stroke:#9ca3af,color:#374151
+
+  class SIGP,SIGD,SIGE,SIGC,SIGB,SIGA signal
+  class DA2PAY,DA3REST,DA4VAL,DA4EXE,PARA,SAFEOUT,ATOUT,NEWCARD,OFFERCARD action
+  class DONE stop
+  class ESC esc
+  </div>
+  <div class="legend">
+    <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>HANDOFF SIGNAL (fires exactly one per turn)</span>
+    <span class="chip"><span class="dot" style="background:#2563eb;"></span>Agent call / action</span>
+    <span class="chip"><span class="dot" style="background:#16a34a;"></span>Resolved</span>
+    <span class="chip"><span class="dot" style="background:#ca8a04;"></span>AT RISK path</span>
+    <span class="chip"><span class="dot" style="background:#dc2626;"></span>Human escalation</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIAGRAM 5 — SA1 Diagnostic Supervisor flow                              -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>5 · SA1_DiagnosticSupervisor — Parallel Fan-out &amp; Synthesis</h2>
+  <p class="desc">
+    Invoked by root_agent when a customer's complaint is ambiguous — symptoms that could be caused by storage,
+    an integration failure, or an account issue.
+    SA1 fans out <strong>all three domain agents in parallel</strong> in a single LLM turn, collects their results,
+    and synthesises a ranked finding. Single-intent queries bypass SA1 entirely and route directly to the relevant domain agent.
+    Two demo accounts: <strong>20012 Taylor</strong> (Team plan, 95/100 GB — storage is the culprit) and
+    <strong>20013 Blake</strong> (Business plan, GitHub auth_failure — integration is the culprit).
+  </p>
+  <div class="mermaid">
+flowchart TD
+
+  ROOT_IN(["root_agent receives\nhealth complaint on ACTIVE account"])
+
+  ROUTE{{"Single-intent or\nambiguous?"}}
+  ROOT_IN --> ROUTE
+
+  DIRECT_ST["DA5_StorageAgent\ndirect route\n'How much storage am I using?'\n'Why are uploads failing?'"]
+  DIRECT_IG["DA6_IntegrationAgent\ndirect route\n'Is my GitHub working?'\n'Why isn't Slack syncing?'"]
+
+  ROUTE -->|"storage only"| DIRECT_ST
+  ROUTE -->|"integration only"| DIRECT_IG
+  ROUTE -->|"ambiguous —\n'something feels off'\n'things aren't syncing'"| SA1
+
+  SA1["🔶 SA1_DiagnosticSupervisor\ngemini-2.5-flash\nfan-out all 3 domains simultaneously"]
+
+  subgraph FANOUT ["∥ Parallel fan-out — all 3 fire in one SA1 turn"]
+    direction LR
+    DA1_D["DA1_AccountAgent\nT2_CheckDataRetention\ndata_safe · days_suspended\nproject_count"]
+    DA_ST_D["DA5_StorageAgent\nT11_CheckStorage\nused_gb / plan_gb\nused_pct · near_limit · headroom"]
+    DA_IG_D["DA6_IntegrationAgent\nT12_CheckIntegration\nintegration_name · status\nauth_failures · days_since_sync"]
+  end
+
+  SA1 --> DA1_D
+  SA1 --> DA_ST_D
+  SA1 --> DA_IG_D
+
+  SYNTH["SA1 Synthesis\n─────────────────────────────\nUrgency ranking:\nHIGH   → auth_failure · sync_error · data AT RISK\nMEDIUM → storage near_limit · disconnected\nHEALTHY → all clear\n─────────────────────────────\nReturns: PRIMARY FINDING + RECOMMENDED ACTION"]
+
+  DA1_D --> SYNTH
+  DA_ST_D --> SYNTH
+  DA_IG_D --> SYNTH
+
+  OUT_IG["PRIMARY FINDING: Integration (HIGH)\nGitHub auth_failure — 5 failures\nlast sync 3 days ago\nACTION: reconnect in Settings → Integrations\n── Demo: Account 20013 Blake / Nexus Digital ──"]
+  OUT_ST["PRIMARY FINDING: Storage (MEDIUM)\nTeam plan 95/100 GB used (95%) — NEAR LIMIT\nOnly 5 GB headroom — causing upload failures\nACTION: upgrade plan or archive files\n── Demo: Account 20012 Taylor / Brightline ──"]
+  OUT_OK["All 3 dimensions HEALTHY\nData safe · Storage healthy · Integration syncing\nNo action required"]
+
+  SYNTH -->|"HIGH urgency\nintegration issue"| OUT_IG
+  SYNTH -->|"MEDIUM urgency\nstorage near limit"| OUT_ST
+  SYNTH -->|"all clear"| OUT_OK
+
+  RELAY(["root_agent relays\nwarm finding to customer"])
+  OUT_IG --> RELAY
+  OUT_ST --> RELAY
+  OUT_OK --> RELAY
+  DIRECT_ST --> RELAY
+  DIRECT_IG --> RELAY
+
+  classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
+  classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
+  classDef domain     fill:#dcfce7,stroke:#16a34a,color:#1a1a2e,font-weight:600
+  classDef finding    fill:#dbeafe,stroke:#2563eb,color:#1a1a2e
+  classDef high       fill:#fee2e2,stroke:#dc2626,color:#991b1b
+  classDef medium     fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
+  classDef ok         fill:#dcfce7,stroke:#16a34a,color:#1a1a2e
+  classDef relay      fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e
+
+  class ROOT_IN,RELAY relay
+  class SA1 supervisor
+  class DA1_D,DA_ST_D,DA_IG_D,DIRECT_ST,DIRECT_IG domain
+  class SYNTH finding
+  class OUT_IG high
+  class OUT_ST medium
+  class OUT_OK ok
+  </div>
+  <div class="legend">
+    <span class="chip"><span class="dot" style="background:#ea580c;"></span>SA1 Supervisor (fan-out + synthesis)</span>
+    <span class="chip"><span class="dot" style="background:#16a34a;"></span>Domain Agent / direct bypass</span>
+    <span class="chip"><span class="dot" style="background:#2563eb;"></span>Synthesis &amp; urgency ranking</span>
+    <span class="chip"><span class="dot" style="background:#dc2626;"></span>HIGH urgency finding</span>
+    <span class="chip"><span class="dot" style="background:#ca8a04;"></span>MEDIUM urgency finding</span>
+    <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>root_agent relay to customer</span>
+  </div>
+</div>
+
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#ede9fe',
+      primaryBorderColor: '#5b4cf5',
+      primaryTextColor: '#1a1a2e',
+      lineColor: '#5b4cf5',
+      fontSize: '13px',
+    },
+    flowchart: { curve: 'basis', htmlLabels: true },
+    sequence: { mirrorActors: false, messageAlign: 'left' },
+  });
+</script>
+
+</body>
+</html>

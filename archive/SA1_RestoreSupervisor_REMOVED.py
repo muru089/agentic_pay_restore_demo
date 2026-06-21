@@ -37,6 +37,9 @@ from .DA1_Account_Agent import da1_account_agent
 from .DA2_Billing_Agent import da2_billing_agent
 from .DA3_Restore_Agent import da3_restore_agent
 from .DA4_Plan_Agent    import da4_plan_agent
+from .log_setup         import get_logger
+
+_log = get_logger("sa1")
 
 # ---------------------------------------------------------------------------
 # Terminal trace callbacks — surface SA1's inner DA calls during adk web demo
@@ -56,6 +59,7 @@ def _before_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCon
     print(f"  SA1 -> {label}")
     print(f"  REQ: {req}...")
     print(_SEP)
+    _log.debug(f"CALL  agent={tool.name}  req={req[:80]}")
     return None
 
 def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackContext, tool_response: Any):
@@ -65,6 +69,10 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
     print(f"  SA1 <- {label}")
     print(f"  RSP: {resp}...")
     print(_SEP)
+    if not tool_response or str(tool_response).strip() == "":
+        _log.error(f"EMPTY_RESPONSE  agent={tool.name} — Part(text=None) bug suspected")
+    else:
+        _log.debug(f"RESP  agent={tool.name}  rsp={resp[:80]}")
     return None
 
 
@@ -101,14 +109,19 @@ Scan the transcript in priority order. Fire exactly ONE signal.
 
 --------------------------------------------------------------------------------
 SIGNAL D (highest priority): Payment + restore not yet executed
-    Evidence: Customer said "yes", "go ahead", "restore it", "do it", "confirm",
+    Evidence: Customer said "yes", "go ahead", "restore it", "restore us", "get it restored",
+              "go ahead and restore", "do it", "confirm", "proceed", "charge it",
               or provided a new card number in the current or most recent turn.
               AND the restore has not yet completed in the transcript (DA3 has not returned success).
               AND balance has not yet been cleared in the transcript.
-    IMPORTANT: A single customer message that contains BOTH a new card number AND consent
-              ("New card is XXXX. Yes, go ahead.") is sufficient to fire SIGNAL D immediately.
+    IMPORTANT: A single customer message that contains BOTH a new card number AND any restore
+              intent ("restore us now", "restore it", "go ahead", "yes", etc.) is sufficient
+              to fire SIGNAL D immediately. Do NOT ask for additional confirmation when the
+              customer has already given a card and restore intent — proceed directly to payment.
               Do NOT re-run SIGNAL A checks in this case — balance, data, and fee info was
               already gathered in the prior SIGNAL A turn and is in the transcript.
+    EXECUTION RULE: When SIGNAL D fires, execute Steps 1–5 immediately. Do NOT compose
+              a "here's what I'll do" message or ask for another confirmation. Just do it.
     Action:
       Step 1 — Extract card context:
         Check T1's output in transcript for card_expired.
@@ -122,11 +135,16 @@ SIGNAL D (highest priority): Payment + restore not yet executed
                                    [plan_name] plan, amount paid $[amount from Step 2].
                                    DATA_AT_RISK=True — do not confirm projects intact."
       Step 4 — Compose restore confirmation. Use warm, personal language:
+                IMPORTANT: Check the transcript for data safety. If DA1 returned
+                data_safe=False or the transcript contains "AT RISK" or "exceeds our
+                30-day" language, you MUST use the AT RISK version below.
                 - Open with the good news: "[first_name], you're all back up and running!"
                 - data_safe=True:  "All [project_count] of your projects are intact."
-                  data_safe=False: "We recommend checking your project dashboard to
-                                   confirm which projects are accessible — some may
-                                   have been affected given the length of suspension."
+                  data_safe=False: "Given the length of suspension, we recommend checking
+                                   your project dashboard to confirm which projects are
+                                   accessible — some may have been affected. Our team is
+                                   here if you need help with data recovery."
+                  NEVER say "N projects confirmed intact" on the data_safe=False path.
                 - Fee: Already disclosed in SIGNAL A. Do NOT re-announce.
                   Exception only: waiver was GRANTED AND customer asked about fees
                   → brief line: "And as confirmed, your late fee is waived."
@@ -190,7 +208,13 @@ SIGNAL A (lowest priority): Fresh start
           waiver_granted=True  → "Your balance is $[amount] — and good news, your
                                    late fee is waived!"
           waiver_granted=False, customer mentioned "fee"/"waiver" in transcript
-                               → "Your balance is $[amount], plus a $[late_fee] late fee."
+                               → State the balance and fee, then relay DA2's exact reason
+                                 sentence: "Your balance is $[amount], plus a $[late_fee]
+                                 late fee — [reason from DA2's T4 response]."
+                                 DA2's reason follows the em dash in its response, e.g.
+                                 "AutoPay was not enabled on your account" or
+                                 "your account is 6 months old, which does not meet
+                                 the 6-month minimum." Include it verbatim.
           waiver_granted=False, customer did NOT mention fees
                                → "Your balance is $[amount], plus a $[late_fee] late fee."
                                   (State it factually. Do NOT mention waiver eligibility

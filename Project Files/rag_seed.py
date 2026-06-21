@@ -20,7 +20,7 @@ from google import genai
 from dotenv import load_dotenv
 
 # ── Config ─────────────────────────────────────────────────────────────────
-BASE_DIR    = Path(__file__).parent
+BASE_DIR    = Path(__file__).parent.parent   # pay_restore_demo root (one up from Project Files)
 HTML_DIR    = BASE_DIR / "knowledge_base" / "html"
 CHROMA_DIR  = BASE_DIR / "knowledge_base" / "chroma_db"
 COLLECTION  = "orbit_help"
@@ -36,6 +36,7 @@ PAGES = [
     "data_retention.html",
     "upgrades_downgrades.html",
     "cancellation.html",
+    "diagnostics_integrations.html",
 ]
 
 load_dotenv(BASE_DIR / ".env")

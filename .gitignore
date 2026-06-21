@@ -21,3 +21,15 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+
+# Ephemeral test run outputs
+Agent Sim/batch_run_output.txt
+Agent Sim/batch_run_errors.txt
+Agent Sim/targeted_output.txt
+Agent Sim/targeted_errors.txt
+
+# Claude Code memory (local only)
+.claude/
