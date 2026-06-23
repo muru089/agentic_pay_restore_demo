@@ -638,7 +638,7 @@ graph TD
   USER --> ROOT
 
   %% ── SA-Billing Supervisor ────────────────────────────────────────────
-  subgraph SAB ["💳  SA-Billing Supervisor"]
+  subgraph SAB ["SA-Billing Supervisor"]
     direction TB
     SABn["SA-Billing Supervisor"]
     DA2s["DA2 · BillingAgent\nbalance · payment · fee waiver"]
@@ -650,7 +650,7 @@ graph TD
   end
 
   %% ── SA-Account Supervisor ────────────────────────────────────────────
-  subgraph SAA ["🔐  SA-Account Supervisor"]
+  subgraph SAA ["SA-Account Supervisor"]
     direction TB
     SAAn["SA-Account Supervisor"]
     DA1s["DA1 · AccountAgent\naccount status · data retention"]
@@ -662,9 +662,9 @@ graph TD
   end
 
   %% ── SA-Diagnostics Supervisor (today's SA1) ──────────────────────────
-  subgraph SAD ["🔶  SA-Diagnostics Supervisor  ← today's SA1_DiagnosticSupervisor"]
+  subgraph SAD ["SA-Diagnostics Supervisor  (built: SA1_DiagnosticSupervisor)"]
     direction TB
-    SADn["SA1_DiagnosticSupervisor\n∥ fan-out · urgency synthesis"]
+    SADn["SA1_DiagnosticSupervisor\nparallel fan-out · urgency synthesis"]
     DA1d["DA1 · AccountAgent\n(shared read-only view)"]
     DA5s["DA5 · StorageAgent\nstorage check (T11)"]
     DA6s["DA6 · IntegrationAgent\nintegration health (T12)"]
@@ -674,7 +674,7 @@ graph TD
   end
 
   %% ── SA-Fulfillment Supervisor ────────────────────────────────────────
-  subgraph SAF ["⚙️  SA-Fulfillment Supervisor"]
+  subgraph SAF ["SA-Fulfillment Supervisor"]
     direction TB
     SAFn["SA-Fulfillment Supervisor"]
     DA3s["DA3 · RestoreAgent\nrestore · receipt  (Squad)"]
