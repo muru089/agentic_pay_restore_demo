@@ -282,6 +282,12 @@ function setStatus(state, text) {
 
 // ── Message send ──────────────────────────────────────────────────────────
 
+// Returns true if the text looks like a raw card number (16 consecutive digits, possibly space/dash separated)
+function containsCardNumber(text) {
+  const stripped = text.replace(/[\s\-]/g, '');
+  return /\d{16}/.test(stripped);
+}
+
 async function sendMessage(overrideText) {
   const input = document.getElementById('userInput');
   const text  = overrideText ?? input.value.trim();
@@ -298,6 +304,27 @@ async function sendMessage(overrideText) {
     const resolve = pendingCardResolve;
     pendingCardResolve = null;
     resolve({ status: 'dismissed' });
+  }
+
+  // Intercept raw card numbers typed in chat — PII security guard
+  // (only for free-text input, not for the form's JSON response)
+  if (!overrideText && containsCardNumber(text)) {
+    hideWelcome();
+    addBubble('user', text);
+    input.value = '';
+    autoResize(input);
+    // Show security warning as agent bubble (client-side — raw number never reaches backend)
+    addBubble('agent',
+      "For your security, please don’t share card details directly in this chat window " +
+      "— I’ve got a secure form ready for you instead.");
+    isWaiting = false;
+    setInput(true);
+    showCardForm().then(cardResult => {
+      if (cardResult && cardResult.status === 'success') {
+        sendMessage(JSON.stringify(cardResult));
+      }
+    });
+    return;
   }
 
   hideWelcome();
@@ -357,7 +384,8 @@ async function runSSE(text) {
   const reader  = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let lastAgentText = '';
+  let allAgentText = '';   // accumulated across all events
+  let lastEventText = '';  // text from the most recent event (used as fallback)
 
   while (true) {
     const { done, value } = await reader.read();
@@ -374,14 +402,19 @@ async function runSSE(text) {
         const event = JSON.parse(raw);
         if (event.content && event.content.parts && event.author !== 'user') {
           for (const part of event.content.parts) {
-            if (part.text) lastAgentText = part.text;
+            if (part.text) {
+              allAgentText += part.text;
+              lastEventText = part.text;
+            }
           }
         }
       } catch (_) {}
     }
   }
 
-  return lastAgentText || "I didn't catch a response — please try again.";
+  // Use accumulated text (catches __CARD_FORM__ even if it arrived in a middle chunk).
+  // Fall back to lastEventText if accumulation produced nothing useful.
+  return allAgentText || lastEventText || "I didn't catch a response — please try again.";
 }
 
 // ── Card form (inline) ────────────────────────────────────────────────────

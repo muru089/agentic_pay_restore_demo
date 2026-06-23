@@ -599,6 +599,144 @@ flowchart TD
 </div>
 
 
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- APPENDIX — Future Supervisor Architecture (talking point, not built)    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div style="margin-top: 48px;">
+  <button
+    id="appendix-toggle"
+    onclick="toggleAppendix()"
+    style="
+      display: flex; align-items: center; gap: 10px;
+      background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 10px;
+      padding: 12px 20px; cursor: pointer; font-size: 14px; font-weight: 600;
+      color: #374151; width: 100%; text-align: left;
+    "
+  >
+    <span id="appendix-arrow" style="font-size: 16px; transition: transform 0.2s;">&#9658;</span>
+    <span>Appendix &mdash; Future Supervisor Architecture</span>
+    <span style="font-size: 12px; font-weight: 400; color: #9ca3af; margin-left: auto;">Click to expand</span>
+  </button>
+
+  <div id="appendix-content" style="display: none; margin-top: 16px;">
+    <div class="section">
+      <h2>A &middot; Future Supervisor Architecture &nbsp;<span style="font-size:13px;font-weight:400;color:#6b7280;">(talking point &mdash; not built)</span></h2>
+      <p class="desc">
+        Today's demo runs with a single SA1_DiagnosticSupervisor. As the product grows, domain agents naturally cluster into
+        four functional supervisors &mdash; each owning a coherent slice of the business. This diagram shows what the
+        architecture would look like at scale. The SA-Diagnostics Supervisor <em>is</em> today's SA1_DiagnosticSupervisor;
+        the other three are future state. root_agent continues to own auth, routing, restore sequencing, and safety
+        pre-flight &mdash; that doesn't change.
+      </p>
+      <div class="mermaid" id="appendix-mermaid">
+graph TD
+
+  %% ── Customer + root ──────────────────────────────────────────────────
+  USER(["👤 Customer message"])
+  ROOT["🟣 root_agent  (Uber)\nauth · safety pre-flight · routing\npersistent restore state · RAG (T10)"]
+
+  USER --> ROOT
+
+  %% ── SA-Billing Supervisor ────────────────────────────────────────────
+  subgraph SAB ["💳  SA-Billing Supervisor"]
+    direction TB
+    SABn["SA-Billing Supervisor"]
+    DA2s["DA2 · BillingAgent\nbalance · payment · fee waiver"]
+    DAFr["DA-Fraud  (future)\nfraud detection · charge disputes"]
+    DAInv["DA-Invoice  (future)\ninvoice history · credit management"]
+    SABn --> DA2s
+    SABn -.->|"future"| DAFr
+    SABn -.->|"future"| DAInv
+  end
+
+  %% ── SA-Account Supervisor ────────────────────────────────────────────
+  subgraph SAA ["🔐  SA-Account Supervisor"]
+    direction TB
+    SAAn["SA-Account Supervisor"]
+    DA1s["DA1 · AccountAgent\naccount status · data retention"]
+    DAId["DA-Identity  (future)\nauth · access control · SSO"]
+    DASupp["DA-Suspension  (future)\nsuspension rules · appeal flow"]
+    SAAn --> DA1s
+    SAAn -.->|"future"| DAId
+    SAAn -.->|"future"| DASupp
+  end
+
+  %% ── SA-Diagnostics Supervisor (today's SA1) ──────────────────────────
+  subgraph SAD ["🔶  SA-Diagnostics Supervisor  ← today's SA1_DiagnosticSupervisor"]
+    direction TB
+    SADn["SA1_DiagnosticSupervisor\n∥ fan-out · urgency synthesis"]
+    DA1d["DA1 · AccountAgent\n(shared read-only view)"]
+    DA5s["DA5 · StorageAgent\nstorage check (T11)"]
+    DA6s["DA6 · IntegrationAgent\nintegration health (T12)"]
+    DAPerf["DA-Performance  (future)\nuptime · latency · log analysis"]
+    SADn --> DA1d & DA5s & DA6s
+    SADn -.->|"future"| DAPerf
+  end
+
+  %% ── SA-Fulfillment Supervisor ────────────────────────────────────────
+  subgraph SAF ["⚙️  SA-Fulfillment Supervisor"]
+    direction TB
+    SAFn["SA-Fulfillment Supervisor"]
+    DA3s["DA3 · RestoreAgent\nrestore · receipt  (Squad)"]
+    DA4s["DA4 · PlanAgent\nplan change · receipt  (Squad)"]
+    DAProv["DA-Provisioning  (future)\nonboarding · seat management"]
+    SAFn --> DA3s & DA4s
+    SAFn -.->|"future"| DAProv
+  end
+
+  %% ── Routing ──────────────────────────────────────────────────────────
+  ROOT -->|"billing / payment"| SABn
+  ROOT -->|"account status\ndata check"| SAAn
+  ROOT -->|"multi-dim\nhealth complaint"| SADn
+  ROOT -->|"restore\nplan change"| SAFn
+
+  %% ── Styles ───────────────────────────────────────────────────────────
+  classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
+  classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
+  classDef today      fill:#dcfce7,stroke:#16a34a,color:#1a1a2e,font-weight:600
+  classDef future     fill:#f9fafb,stroke:#d1d5db,color:#6b7280,font-style:italic
+
+  class ROOT uber
+  class SABn,SAAn,SADn,SAFn supervisor
+  class DA1s,DA2s,DA3s,DA4s,DA5s,DA6s,DA1d today
+  class DAFr,DAInv,DAId,DASupp,DAPerf,DAProv future
+      </div>
+
+      <div class="legend">
+        <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>Uber (root_agent &mdash; unchanged)</span>
+        <span class="chip"><span class="dot" style="background:#ea580c;"></span>Supervisor (4 functional domains)</span>
+        <span class="chip"><span class="dot" style="background:#16a34a;"></span>Domain / Squad Agent (built today)</span>
+        <span class="chip"><span class="dot" style="background:#d1d5db;"></span>Future agent (not built)</span>
+      </div>
+
+      <div style="margin-top:20px;padding:16px 20px;background:#f0fdf4;border-radius:8px;border-left:3px solid #16a34a;font-size:13px;color:#374151;line-height:1.7;">
+        <strong>What's already built today (SA-Diagnostics):</strong> SA1_DiagnosticSupervisor fans out DA1, DA5, and DA6
+        in parallel, synthesises urgency, and surfaces the highest-impact finding.<br><br>
+        <strong>DA1 appears in two supervisors</strong> — SA-Account (primary ownership) and SA-Diagnostics (shared read-only view).
+        In this architecture, DA1 is a shared read-only agent: SA-Diagnostics calls it directly for the account health dimension
+        of a diagnostic fan-out. Primary writes (suspension, status changes) go through SA-Account. This is the standard
+        pattern for read-heavy agents that multiple supervisors need: one agent, two callers, no duplication of tool logic.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleAppendix() {
+    const content = document.getElementById('appendix-content');
+    const arrow   = document.getElementById('appendix-arrow');
+    const btn     = document.getElementById('appendix-toggle');
+    const hidden  = content.style.display === 'none';
+    content.style.display = hidden ? 'block' : 'none';
+    arrow.style.transform = hidden ? 'rotate(90deg)' : '';
+    btn.querySelector('span:last-child').textContent = hidden ? 'Click to collapse' : 'Click to expand';
+    if (hidden) {
+      // Re-run mermaid on the newly visible diagram
+      setTimeout(() => { mermaid.init(undefined, document.getElementById('appendix-mermaid')); }, 50);
+    }
+  }
+</script>
+
 <script>
   mermaid.initialize({
     startOnLoad: true,
