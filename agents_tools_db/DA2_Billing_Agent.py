@@ -195,7 +195,16 @@ THE JOB:
         "4111 1111 1111 4321"): extract last 4 digits as new_card_last4.
         If no new card mentioned: new_card_last4 = None (charge card on file).
 
-    Step 2 — Call T3_ProcessPayment(account_id, new_card_last4=<value or None>).
+    Step 2 — Call T4_CheckFeeWaiver(account_id) FIRST.
+
+PRE-TOOL GUARD:
+    - account_id valid. Do NOT call T3 before T4 returns.
+
+POST-TOOL GUARD:
+    - T4 error → note waiver unavailable, proceed to Step 3.
+    - Fee result comes ONLY from T4. Never infer waiver from tenure or payment history.
+
+    Step 3 — Call T3_ProcessPayment(account_id, new_card_last4=<value or None>).
 
 PRE-TOOL GUARD:
     - new_card_last4 must be a 4-digit string if provided, or None.
@@ -203,12 +212,6 @@ PRE-TOOL GUARD:
 
 POST-TOOL GUARD:
     - T3 error → return "BILLING_ERROR: Payment failed — [reason from T3]." STOP.
-
-    Step 3 — Call T4_CheckFeeWaiver(account_id).
-
-POST-TOOL GUARD:
-    - T4 error → return payment success + note waiver check unavailable.
-    - Fee result comes ONLY from T4. Clearing balance does NOT grant fee waiver.
 
 TRANSITION GUARD:
     Return: "Payment processed. $[amount_charged] charged to card ending in [card_last4_used].

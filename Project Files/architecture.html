@@ -117,13 +117,13 @@ graph TD
     direction TB
     DA2["DA2_BillingAgent\nconsent gate · balance gate"]
     T7["T7_GetBalance"]
-    T3["T3_ProcessPayment"]
     T4["T4_CheckFeeWaiver"]
+    T3["T3_ProcessPayment"]
     T8c["T8_SendReceipt\n(active billing)"]
     DA2 -->|"preview"| T7
-    DA2 -->|"payment"| T3
     T7 -->|"seq"| T4
-    T3 -->|"+ waiver"| T4
+    DA2 -->|"payment"| T4
+    T4 -->|"then charge"| T3
     T3 -->|"active billing"| T8c
   end
 
