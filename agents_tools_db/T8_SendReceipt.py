@@ -1,4 +1,4 @@
-"""
+﻿"""
 T8_SendReceipt
 --------------
 WHAT THIS TOOL DOES:
@@ -47,7 +47,7 @@ def T8_SendReceipt(account_id, action_type, details=None):
     Returns:
         dict: Order reference ID and fully formatted receipt text block.
     """
-    db_path = os.path.join(os.path.dirname(__file__), "pay_restore.db")
+    db_path = os.path.join(os.path.dirname(__file__), "orbit.db")
     conn    = sqlite3.connect(db_path)
     cursor  = conn.cursor()
 

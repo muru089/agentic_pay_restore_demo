@@ -37,6 +37,7 @@ PAGES = [
     "upgrades_downgrades.html",
     "cancellation.html",
     "diagnostics_integrations.html",
+    "team_administration.html",
 ]
 
 load_dotenv(BASE_DIR / ".env")

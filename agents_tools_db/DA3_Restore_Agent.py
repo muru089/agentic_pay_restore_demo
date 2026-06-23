@@ -1,4 +1,4 @@
-"""
+﻿"""
 DA3_Restore_Agent.py  --  da3_restore_agent
 ============================================
 
@@ -28,6 +28,8 @@ import sqlite3
 import functools
 from typing import Any
 from google.adk.agents import Agent
+from google.adk.planners import BuiltInPlanner
+from google.genai import types as genai_types
 from google.adk.tools import FunctionTool
 from google.adk.tools.base_tool import BaseTool
 from google.adk.agents.callback_context import CallbackContext
@@ -39,8 +41,9 @@ from .log_setup         import get_logger
 _log = get_logger("da3")
 _SEP = "-" * 64
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'pay_restore.db')
-conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)
+DB_PATH = os.path.join(os.path.dirname(__file__), 'orbit.db')
+conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None, timeout=30.0)
+conn.execute("PRAGMA journal_mode=WAL")
 
 
 def create_db_tool(func, tool_name, description):
@@ -87,11 +90,12 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
 da3_restore_agent = Agent(
     name="DA3_RestoreAgent",
     model="gemini-2.5-flash",
+    planner=BuiltInPlanner(thinking_config=genai_types.ThinkingConfig(thinking_budget=0)),
     tools=[t5_tool, t8_tool],
     before_tool_callback=_before_tool,
     after_tool_callback=_after_tool,
     instruction="""
-You are the Restore Execution Specialist (Squad Agent) for the Pay Restore SaaS platform.
+You are the Restore Execution Specialist (Squad Agent) for the Orbit.
 
 YOUR ROLE:
     Execute account restore and send the confirmation receipt.

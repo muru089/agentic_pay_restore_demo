@@ -1,10 +1,10 @@
 """
-log_setup.py — Centralized logging for Pay Restore Demo
-=========================================================
+log_setup.py — Centralized logging for Orbit Demo
+===================================================
 Provides a file-based logger for system failures and critical tool events.
 Conversational content (LLM responses) is NOT logged here — only system events.
 
-Log file: pay_restore.log (in project root, git-ignored)
+Log file: orbit.log (in project root, git-ignored)
 
 Event categories:
     SAFETY    — Azure API calls, blocks, errors (T1/T2a/T2b)
@@ -14,7 +14,7 @@ Event categories:
     SYSTEM    — Startup, shutdown, configuration errors
 
 Usage:
-    from pay_restore_demo.log_setup import get_logger
+    from orbit_demo.log_setup import get_logger
     log = get_logger("safety")
     log.info("BLOCKED  category=Violence  account=20001")
     log.error("Azure timeout — failing open  url=...")
@@ -25,7 +25,7 @@ import logging.handlers
 import os
 from datetime import datetime
 
-_LOG_PATH = os.path.join(os.path.dirname(__file__), "pay_restore.log")
+_LOG_PATH = os.path.join(os.path.dirname(__file__), "orbit.log")
 
 _LOG_FORMAT = "%(asctime)s  %(levelname)-8s  [%(name)s]  %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -38,7 +38,7 @@ def _configure():
     if _configured:
         return
 
-    root = logging.getLogger("pay_restore")
+    root = logging.getLogger("orbit")
     root.setLevel(logging.DEBUG)
 
     # File handler — rotates at 5 MB, keeps 3 backups
@@ -59,6 +59,6 @@ def _configure():
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Return a child logger under the pay_restore namespace."""
+    """Return a child logger under the orbit namespace."""
     _configure()
-    return logging.getLogger(f"pay_restore.{name}")
+    return logging.getLogger(f"orbit.{name}")

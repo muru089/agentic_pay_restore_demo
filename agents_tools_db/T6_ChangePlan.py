@@ -1,4 +1,4 @@
-"""
+﻿"""
 T6_ChangePlan
 -------------
 WHAT THIS TOOL DOES:
@@ -99,7 +99,7 @@ def T6_ChangePlan(conn, account_id, new_plan_name, duration_months=None):
 # =============================================================================
 if __name__ == "__main__":
     import os
-    DB_PATH = os.path.join(os.path.dirname(__file__), "pay_restore.db")
+    DB_PATH = os.path.join(os.path.dirname(__file__), "orbit.db")
     conn = sqlite3.connect(DB_PATH)
 
     print("=== T6_ChangePlan -- Manual Test Run ===\n")

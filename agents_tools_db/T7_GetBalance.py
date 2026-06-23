@@ -1,4 +1,4 @@
-"""
+﻿"""
 T7_GetBalance
 -------------
 WHAT THIS TOOL DOES:
@@ -61,7 +61,7 @@ def T7_GetBalance(conn, account_id):
 # =============================================================================
 if __name__ == "__main__":
     import os
-    DB_PATH = os.path.join(os.path.dirname(__file__), "pay_restore.db")
+    DB_PATH = os.path.join(os.path.dirname(__file__), "orbit.db")
     conn = sqlite3.connect(DB_PATH)
 
     print("=== T7_GetBalance -- Manual Test Run ===\n")

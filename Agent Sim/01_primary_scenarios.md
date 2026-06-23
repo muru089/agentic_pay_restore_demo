@@ -1,6 +1,6 @@
-# Pay Restore Demo — Primary Personas (13 Accounts)
+﻿# Orbit Demo — Primary Personas (13 Accounts)
 
-All personas run against `agents_tools_db/pay_restore.db`.
+All personas run against `agents_tools_db/orbit.db`.
 Reset the DB before each run: `py pay_restore_demo/agents_tools_db/z_reset_world.py` (from `c:\Muru_Workspace`).
 Batch runner: `python "pay_restore_demo/Agent Sim/run_personas.py"` (from `c:\Muru_Workspace`).
 

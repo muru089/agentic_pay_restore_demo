@@ -1,4 +1,4 @@
-"""
+﻿"""
 T1_GetAccount
 -------------
 WHAT THIS TOOL DOES:
@@ -78,7 +78,7 @@ def T1_GetAccount(conn, account_id):
 # =============================================================================
 if __name__ == "__main__":
     import os
-    DB_PATH = os.path.join(os.path.dirname(__file__), "pay_restore.db")
+    DB_PATH = os.path.join(os.path.dirname(__file__), "orbit.db")
     conn = sqlite3.connect(DB_PATH)
 
     print("=== T1_GetAccount -- Manual Test Run ===\n")

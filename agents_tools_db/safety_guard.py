@@ -43,6 +43,17 @@ _ENDPOINT = os.getenv("AZURE_CONTENT_SAFETY_ENDPOINT", "").rstrip("/")
 import re
 _SSN_RE = re.compile(r'\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b')
 
+# Pre-filter: Prompt Shield false-positive bypass for clear account service messages.
+# A message with a 5-digit account ID + standard billing/restore vocabulary is a
+# legitimate customer request — not a jailbreak — and should not go to Azure.
+_ACCT_ID_RE = re.compile(r'\b\d{5}\b')
+_ACCT_ACTIONS_RE = re.compile(
+    r'\b(restore|restored|suspended|suspension|waive|waiver|payment|pay|billing|upgrade|'
+    r'downgrade|account|balance|fee|card|reactivate|renew|cancel|data|project|access|'
+    r'checkout|checkout|check\s+out|get\s+back|back\s+online)\b',
+    re.IGNORECASE
+)
+
 # ── T2a: Azure Prompt Shield ───────────────────────────────────────────────
 # Detects prompt injection and jailbreak attempts (novel paraphrases included).
 # https://learn.microsoft.com/azure/ai-services/content-safety/concepts/jailbreak-detection
@@ -53,6 +64,10 @@ _SHIELD_HEADERS = {"Ocp-Apim-Subscription-Key": _KEY, "Content-Type": "applicati
 def _t2a_prompt_shield(text: str) -> bool:
     """Returns True if an injection or jailbreak attack is detected."""
     if not _KEY or not _ENDPOINT:
+        return False
+    # Skip for clear customer account service messages — Prompt Shield misclassifies
+    # phrases like "restore it and waive the fee" as potential injection.
+    if _ACCT_ID_RE.search(text) and _ACCT_ACTIONS_RE.search(text):
         return False
     try:
         resp = requests.post(

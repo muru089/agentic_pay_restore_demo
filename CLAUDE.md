@@ -1,4 +1,4 @@
-# Plan: Pay Restore Demo — New Independent Multi-Agent Project
+﻿# Plan: Pay Restore Demo — New Independent Multi-Agent Project
 
 ## Context
 Building a second multi-agent ADK demo using metro_city_demo as the architectural template.
@@ -18,7 +18,7 @@ This utterance contains 6 intents: suspension check, data safety, new card colle
 | **Product name** | Orbit (cloud SaaS project management) |
 | **Domain** | Cloud SaaS — project management / team collaboration |
 | **Folder** | `c:\Muru_Workspace\pay_restore_demo` |
-| **DB file** | `pay_restore.db` |
+| **DB file** | `orbit.db` |
 | **Reset script** | `z_reset_world.py` |
 | **Run from** | `c:\Muru_Workspace` (parent — same pattern as metro_city) |
 
@@ -487,7 +487,7 @@ def create_db_tool(fn, conn):
     bound.__doc__  = fn.__doc__
     return FunctionTool(bound)
 ```
-- T8_SendReceipt exception: opens its own `sqlite3.connect("pay_restore.db")` internally.
+- T8_SendReceipt exception: opens its own `sqlite3.connect("orbit.db")` internally.
   Never wrap with create_db_tool.
 
 ### SA1 Callbacks (terminal trace — same pattern added in metro_city)
@@ -506,6 +506,13 @@ root_agent has a TONE AND PERSONA section before LAYER 1 that shapes all custome
 - Don't over-explain. If customer already confirmed something, don't restate — just move forward.
 - Avoid corporate filler: "Please be advised", "Kindly note", "I apologize for any inconvenience."
 - Match the customer's energy (stressed/urgent → focused and fast; casual → friendly).
+- Answer only what was asked. If the customer asks one specific question, answer that
+  question and stop. Do not volunteer account summaries, project counts, fee waiver
+  results, card status, or next steps unless the customer's message explicitly calls
+  for them. Think of it like a text conversation — "what's my balance?" gets the
+  balance only, not a full account briefing. The full diagnostic (data check, fee
+  waiver, card situation) is only warranted when the customer has expressed restore
+  or payment intent.
 
 ### Card Expiry Acknowledgement (root_agent STATE 1)
 After T1 returns on a SUSPENDED account: if `card_expired=True` AND the customer did NOT already
@@ -527,8 +534,8 @@ Never say "sent to you" or give the email address — it may not be current.
 
 | Source | Destination | Changes |
 |---|---|---|
-| `z_reset_world.py` | `z_reset_world.py` | New tables (plan_catalog, customer_accounts), new personas, pay_restore.db. All suspension_dates computed dynamically as `today - N days` using `datetime.date.today()` — never hardcoded. |
-| `Agent Sim/test_conversation.py` | `Agent Sim/test_conversation.py` | New TURNS, new account IDs, pay_restore.db verification |
+| `z_reset_world.py` | `z_reset_world.py` | New tables (plan_catalog, customer_accounts), new personas, orbit.db. All suspension_dates computed dynamically as `today - N days` using `datetime.date.today()` — never hardcoded. |
+| `Agent Sim/test_conversation.py` | `Agent Sim/test_conversation.py` | New TURNS, new account IDs, orbit.db verification |
 | `__init__.py` | `__init__.py` | Update docstring (pay_restore world, new agent names) |
 | `T5a_GetBalance.py` | `T7_GetBalance.py` | Rename, update docstring only |
 | `T8_CheckFeeWaiver.py` | `T4_CheckFeeWaiver.py` | Change rules: tenure > 6mo (not 3yr), same 3-rule structure |
@@ -651,7 +658,7 @@ Ground rules:
 - DO NOT use gemini-2.0-flash or gemini-2.5-flash-lite for DA1/DA2 — flash-lite drops AgentTool responses
   when called in parallel from SA1 (Part(text=None) bug).
 - Run all commands from c:\Muru_Workspace (parent directory), not from inside pay_restore_demo.
-- DB file is pay_restore.db (not metro_city.db).
+- DB file is orbit.db (not metro_city.db).
 
 Start with Phase 1:
 1. Read CLAUDE.md fully.
@@ -719,7 +726,7 @@ Three-layer check in series:
 | T2a | Azure Content Safety — Prompt Shield | ~80ms | Prompt injection, jailbreak, instruction override |
 | T2b | Azure Content Safety — Text Analyze | ~80ms | Violence, Hate, Sexual, SelfHarm at severity ≥ 4 |
 
-**Fail-open design:** Azure API errors (DNS, timeout, HTTP 5xx) never block a legitimate customer. All errors are logged to `pay_restore.log`.
+**Fail-open design:** Azure API errors (DNS, timeout, HTTP 5xx) never block a legitimate customer. All errors are logged to `orbit.log`.
 
 **Card number exception:** 16-digit card numbers are deliberately NOT blocked. In Phase 1–4 demo mode, customers type card numbers as plain text — this is the standard payment collection flow.
 
@@ -791,10 +798,10 @@ Three-layer check in series:
 
 ---
 
-### 15d. Structured Logging (pay_restore.log)
+### 15d. Structured Logging (orbit.log)
 
 **File:** `log_setup.py`
-**Log file:** `pay_restore.log` (project root, git-ignored, rotating 5 MB, 3 backups)
+**Log file:** `orbit.log` (project root, git-ignored, rotating 5 MB, 3 backups)
 
 Events captured:
 
@@ -811,7 +818,7 @@ Events captured:
 
 Console output: WARNING and above only (does not flood terminal). File gets DEBUG and above.
 
-Previously all of this was print-only (lost in `adk web`) or completely silent (Gemini API failures). `pay_restore.log` persists failures across sessions.
+Previously all of this was print-only (lost in `adk web`) or completely silent (Gemini API failures). `orbit.log` persists failures across sessions.
 
 ---
 
@@ -976,5 +983,5 @@ Adding it would add implementation complexity without demonstrating a new patter
 | 1 | Alex 20001 | Primary happy path — data SAFE, card expired, waiver PASS, Business upgrade 3mo | PASS |
 | 3 | Sam 20003 | Data AT RISK — 35 days, card expired, waiver PASS, no plan change | PASS (after ROW 5/6 fix) |
 
-**test_conversation.py DB path fix:** Changed `_db_path` from `_project_dir/pay_restore.db` to
-`_project_dir/agents_tools_db/pay_restore.db` so the post-run DB verification reads the correct file.
+**test_conversation.py DB path fix:** Changed `_db_path` from `_project_dir/orbit.db` to
+`_project_dir/agents_tools_db/orbit.db` so the post-run DB verification reads the correct file.

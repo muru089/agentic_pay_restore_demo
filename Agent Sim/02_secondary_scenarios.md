@@ -1,4 +1,4 @@
-# Pay Restore Demo — Secondary & Group Scenarios
+﻿# Orbit Demo — Secondary & Group Scenarios
 
 Consolidated from `primary_scenarios.md` (group-based, S01–SD04) and `secondary_scenarios.md`
 (edge cases 1–120). Together these cover all scenario categories beyond the 13 primary personas.

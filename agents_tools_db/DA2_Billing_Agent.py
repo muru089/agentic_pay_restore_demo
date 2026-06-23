@@ -1,4 +1,4 @@
-"""
+﻿"""
 DA2_Billing_Agent.py  --  da2_billing_agent
 ============================================
 
@@ -24,20 +24,24 @@ import sqlite3
 import functools
 from typing import Any
 from google.adk.agents import Agent
+from google.adk.planners import BuiltInPlanner
 from google.adk.tools import FunctionTool
 from google.adk.tools.base_tool import BaseTool
 from google.adk.agents.callback_context import CallbackContext
+from google.genai import types as genai_types
 
 from .T7_GetBalance      import T7_GetBalance
 from .T3_ProcessPayment  import T3_ProcessPayment
 from .T4_CheckFeeWaiver  import T4_CheckFeeWaiver
+from .T8_SendReceipt     import T8_SendReceipt
 from .log_setup          import get_logger
 
 _log = get_logger("da2")
 _SEP = "-" * 64
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'pay_restore.db')
-conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)
+DB_PATH = os.path.join(os.path.dirname(__file__), 'orbit.db')
+conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None, timeout=30.0)
+conn.execute("PRAGMA journal_mode=WAL")
 
 
 def create_db_tool(func, tool_name, description):
@@ -76,6 +80,8 @@ t4_tool = create_db_tool(
     "Fee amount comes from plan_catalog. Input: account_id (integer)."
 )
 
+t8_tool = FunctionTool(T8_SendReceipt)
+
 
 # ── Step log callbacks ─────────────────────────────────────────────────────
 def _before_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackContext):
@@ -101,11 +107,12 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
 da2_billing_agent = Agent(
     name="DA2_BillingAgent",
     model="gemini-2.5-flash",
-    tools=[t7_tool, t3_tool, t4_tool],
+    planner=BuiltInPlanner(thinking_config=genai_types.ThinkingConfig(thinking_budget=0)),
+    tools=[t7_tool, t3_tool, t4_tool, t8_tool],
     before_tool_callback=_before_tool,
     after_tool_callback=_after_tool,
     instruction="""
-You are the Billing Specialist for the Pay Restore SaaS platform.
+You are the Billing Specialist for the Orbit.
 
 YOUR ROLE:
     Handle balance checks, payment processing, and fee waiver eligibility.
@@ -128,6 +135,7 @@ THE JOB:
         "process payment and fee waiver" / "payment with waiver" / "pay and check waiver"
             → PAYMENT_WITH_WAIVER
         "process payment" / "charge" / "pay" (without waiver)
+        "active account payment" / "invoice payment" / "no fee waiver applicable"
             → PAYMENT
         "check balance" / "get balance" / "balance only"
             → BALANCE_CHECK
@@ -137,7 +145,7 @@ THE JOB:
 TRANSITION GUARD:
     BALANCE_FEE_PREVIEW  → STATE 2
     PAYMENT_WITH_WAIVER  → STATE 3
-    PAYMENT              → STATE 4
+    PAYMENT              → STATE 4  (also handles active-account billing — no T4, no DA3)
     BALANCE_CHECK        → STATE 5
     FEE_WAIVER           → STATE 6
 
@@ -210,10 +218,12 @@ TRANSITION GUARD:
     STOP.
 
 ================================================================================
-STATE 4: PAYMENT ONLY
+STATE 4: PAYMENT ONLY (handles both suspended-flow and active-account billing)
 ================================================================================
 ENTRY GUARD (PREREQUISITE GATE):
     - Explicit consent required (same check as STATE 3).
+    - Valid for: suspended accounts paying without a waiver, AND active accounts
+      paying a monthly invoice (no fee waiver applicable, no restore needed).
 
 THE JOB:
     Step 1 — Extract card context (same logic as STATE 3, Step 1).
@@ -224,12 +234,19 @@ PRE-TOOL GUARD:
     - new_card_last4 must be a 4-digit string if provided, or None. Never fabricate.
     - Consent must be confirmed in ENTRY GUARD before this step executes.
 
-POST-TOOL GUARD:
+POST-TOOL GUARD (Step 2):
     - Error → return "BILLING_ERROR: Payment failed — [reason from T3]." STOP.
+
+    Step 3 — Call T8_SendReceipt(account_id, action_type="PAYMENT",
+             details={"amount": amount_charged, "card_last4": card_last4_used}).
+
+POST-TOOL GUARD (Step 3):
+    - T8 error → skip order ref but still return payment success.
 
 TRANSITION GUARD:
     Return: "Payment processed. $[amount_charged] charged to card ending in [card_last4_used].
-             Balance cleared."
+             Balance cleared. A confirmation has been sent to your email on file
+             (#[order_ref from T8])."
     STOP.
 
 ================================================================================

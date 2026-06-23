@@ -30,9 +30,11 @@ MODEL NOTE:
 
 from typing import Any
 from google.adk.agents import Agent
+from google.adk.planners import BuiltInPlanner
 from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.base_tool import BaseTool
 from google.adk.agents.callback_context import CallbackContext
+from google.genai import types as genai_types
 
 from .DA1_Account_Agent     import da1_account_agent
 from .DA5_Storage_Agent     import da5_storage_agent
@@ -69,6 +71,7 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
 sa1_diagnostic_supervisor = Agent(
     name="SA1_DiagnosticSupervisor",
     model="gemini-2.5-flash",
+    planner=BuiltInPlanner(thinking_config=genai_types.ThinkingConfig(thinking_budget=0)),
     tools=[
         AgentTool(da1_account_agent),
         AgentTool(da5_storage_agent),

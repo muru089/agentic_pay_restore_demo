@@ -1,4 +1,4 @@
-"""
+﻿"""
 T3_ProcessPayment
 -----------------
 WHAT THIS TOOL DOES:
@@ -95,7 +95,7 @@ def T3_ProcessPayment(conn, account_id, new_card_last4=None):
 # =============================================================================
 if __name__ == "__main__":
     import os
-    DB_PATH = os.path.join(os.path.dirname(__file__), "pay_restore.db")
+    DB_PATH = os.path.join(os.path.dirname(__file__), "orbit.db")
     conn = sqlite3.connect(DB_PATH)
 
     print("=== T3_ProcessPayment -- Manual Test Run ===\n")

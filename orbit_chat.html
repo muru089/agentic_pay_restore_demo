@@ -123,6 +123,7 @@
   .field input:focus { border-color: #5b4cf5; }
   .field input.error { border-color: #ef4444; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field-hint  { font-size: 11px; color: #9ca3af; margin-top: 3px; }
   .field-error { font-size: 11px; color: #ef4444; margin-top: 3px; display: none; }
   .field-error.show { display: block; }
   .card-submit {
@@ -218,8 +219,8 @@
 
   <div class="input-bar">
     <div class="input-row">
-      <textarea id="userInput" rows="1" placeholder="Type a message…" disabled></textarea>
-      <button id="sendBtn" disabled onclick="sendMessage()">
+      <textarea id="userInput" rows="1" placeholder="Type a message…"></textarea>
+      <button id="sendBtn" onclick="sendMessage()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="22" y1="2" x2="11" y2="13"/>
           <polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -252,8 +253,6 @@ async function initSession() {
     const session = await res.json();
     sessionId = session.id;
     setStatus('online', 'Online');
-    document.getElementById('userInput').disabled = false;
-    document.getElementById('sendBtn').disabled = false;
     document.getElementById('userInput').focus();
   } catch (e) {
     setStatus('error', 'Cannot connect — is adk web running?');
@@ -272,7 +271,20 @@ function setStatus(state, text) {
 async function sendMessage(overrideText) {
   const input = document.getElementById('userInput');
   const text  = overrideText ?? input.value.trim();
-  if (!text || isWaiting || !sessionId) return;
+  if (!text || isWaiting) return;
+  if (!sessionId) {
+    addBubble('agent', "Still connecting to the backend — please wait a moment and try again.");
+    return;
+  }
+
+  // If card form is visible and user typed a new message, dismiss the form
+  if (pendingCardResolve && !overrideText) {
+    const form = document.getElementById('cardForm');
+    if (form) form.closest('.msg')?.remove();
+    const resolve = pendingCardResolve;
+    pendingCardResolve = null;
+    resolve({ status: 'dismissed' });
+  }
 
   hideWelcome();
   addBubble('user', text);
@@ -289,13 +301,17 @@ async function sendMessage(overrideText) {
 
     if (agentText.includes('__CARD_FORM__')) {
       const before = agentText.split('__CARD_FORM__')[0].trim();
-      const after  = agentText.split('__CARD_FORM__')[1]?.trim() || '';
       if (before) addBubble('agent', before);
-      const cardResult = await showCardForm();
-      // Card form resolved — send result back to agent as next message
+      // Re-enable input immediately — card form is non-blocking.
+      // User can type a message instead of using the form.
       isWaiting = false;
       setInput(true);
-      await sendMessage(JSON.stringify(cardResult));
+      showCardForm().then(cardResult => {
+        if (cardResult && cardResult.status === 'success') {
+          sendMessage(JSON.stringify(cardResult));
+        }
+        // status === 'dismissed' means user typed a message instead — do nothing
+      });
       return;
     }
 
@@ -367,6 +383,7 @@ function showCardForm() {
           <label>Card Number</label>
           <input type="text" id="cfNum" placeholder="XXXX XXXX XXXX XXXX" maxlength="19"
                  oninput="formatCardNum(this)" />
+          <div class="field-hint">16 digits · e.g. 4111 1111 1111 9988</div>
           <div class="field-error" id="cfNumErr">Please enter a valid 16-digit card number.</div>
         </div>
         <div class="field-row">
@@ -432,7 +449,7 @@ function submitCard() {
 
   let valid = true;
 
-  const numOk = numRaw.length === 16 && luhn(numRaw);
+  const numOk = numRaw.length === 16 && !/0{4,}/.test(numRaw) && !/^(.)\1{15}$/.test(numRaw);
   showFieldError('cfNum', 'cfNumErr', !numOk);
   if (!numOk) valid = false;
 
@@ -537,8 +554,7 @@ function scrollBottom() {
 }
 
 function setInput(enabled) {
-  document.getElementById('userInput').disabled = !enabled;
-  document.getElementById('sendBtn').disabled   = !enabled;
+  document.getElementById('sendBtn').disabled = !enabled;
   if (enabled) document.getElementById('userInput').focus();
 }
 

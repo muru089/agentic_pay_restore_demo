@@ -1,5 +1,5 @@
-"""
-run_all_scenarios.py -- Pay Restore Demo: Full Scenario Batch Runner
+﻿"""
+run_all_scenarios.py -- Orbit Demo: Full Scenario Batch Runner
 =====================================================================
 Runs all 25 primary simulation scenarios from simulation_scenarios.md.
 Resets the DB before each scenario so every run starts from a clean state.
@@ -464,7 +464,7 @@ async def run_scenario(scenario: dict, session_service, runner) -> dict:
 
 async def main():
     print(f"\n{SEP}")
-    print("PAY RESTORE DEMO — FULL SCENARIO BATCH RUN")
+    print("Orbit Demo — FULL SCENARIO BATCH RUN")
     print(f"{SEP}\n")
 
     _log_conn_info()

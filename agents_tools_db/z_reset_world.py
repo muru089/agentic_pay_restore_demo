@@ -1,8 +1,8 @@
-"""
-z_reset_world.py -- Pay Restore Demo: Database Reset Script
+﻿"""
+z_reset_world.py -- Orbit Demo: Database Reset Script
 --------------------------------------------------------------------
 WHAT THIS SCRIPT DOES:
-    Completely wipes pay_restore.db and rebuilds it from scratch with all
+    Completely wipes orbit.db and rebuilds it from scratch with all
     original seed data. Run this any time you want to return the demo to
     its "Day 1" state (e.g., after a live demo mutated balances or accounts).
 
@@ -12,13 +12,16 @@ HOW TO RUN:
 
 TABLES CREATED:
     1. plan_catalog       -- 4 subscription tiers (Individual → Enterprise)
-    2. customer_accounts  -- 13 accounts (11 Active/Suspended + 1 Canceled + 2 Diagnostic)
-    3. receipts           -- confirmation receipts (written by T8_SendReceipt)
-    4. session_state      -- persistent restore flow state (written by T0_SetSessionState)
+    2. customer_accounts  -- 15 accounts (10 Active/Suspended + 1 Canceled + 2 Diagnostic + 2 Manual Payer)
+    3. session_state      -- persistent restore flow state (written by T0_SetSessionState)
 
 DIAGNOSTIC ACCOUNTS (20012-20013):
     20012 Taylor  Brightline    Team/ACTIVE     storage 95/100 GB (near limit), Slack healthy
     20013 Blake   Nexus Digital Business/ACTIVE storage 45/500 GB, GitHub auth_failure
+
+MANUAL PAYER ACCOUNTS (20014-20015):
+    20014 Priya   Clearpath     Business/ACTIVE autopay OFF, $0 balance (just paid), 20mo tenure
+    20015 Dana    Ironforge     Team/ACTIVE     autopay OFF, $49 balance (invoice due), 14mo tenure
 
 IMPORTANT NOTES:
     - plan_name in customer_accounts must exactly match plan_name in plan_catalog.
@@ -45,7 +48,7 @@ def reset_world():
     Deletes the old .db file first for a truly clean slate.
     """
 
-    db_path = os.path.join(os.path.dirname(__file__), "pay_restore.db")
+    db_path = os.path.join(os.path.dirname(__file__), "orbit.db")
 
     if os.path.exists(db_path):
         try:
@@ -55,6 +58,7 @@ def reset_world():
             print("  Could not delete file (may be locked). Dropping tables instead.")
 
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
 
     print("--- INITIATING GLOBAL RESET ---\n")
@@ -101,17 +105,6 @@ def reset_world():
             integration_status      TEXT,
             integration_last_sync   TEXT,
             integration_auth_failures INTEGER
-        )
-    """)
-
-    cursor.execute("DROP TABLE IF EXISTS receipts")
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS receipts (
-            order_ref    TEXT PRIMARY KEY,
-            account_id   INTEGER,
-            action_type  TEXT,
-            details      TEXT,
-            created_at   TEXT
         )
     """)
 
@@ -296,6 +289,29 @@ def reset_world():
          'blake@nexusdigital.io','7733', 0, None,         None,
          12,  22, 30, None,
          45.0,  'GitHub', 'auth_failure', sync_date(3),  5),
+
+        # -----------------------------------------------------------------------
+        # Group D — Manual Payer Accounts (20014-20015)
+        # Active accounts with AutoPay OFF — demonstrate manual billing flow
+        # -----------------------------------------------------------------------
+
+        # 20014 Priya | Clearpath | Business | 20mo | autopay OFF | $0 | ACTIVE
+        # Just paid this month — no balance due. Long-tenure manual payer.
+        # Note: if ever suspended, waiver FAIL Rule B (autopay OFF)
+        # Storage: 220/500 GB | Jira: healthy
+        (20014, 'Priya',  'Clearpath',   'Business',  20.0,  0, 0,   0.00, 'ACTIVE',
+         'priya@clearpath.io',   '6691', 0, None,         None,
+         14,  26, 30, None,
+         220.0, 'Jira',   'healthy',      sync_date(1),  0),
+
+        # 20015 Dana | Ironforge | Team | 14mo | autopay OFF | $49 | ACTIVE
+        # Invoice due — active account in grace period with unpaid monthly bill.
+        # Demonstrates active-account billing flow (DA2 STATE 4 — no restore, no fee waiver).
+        # Storage: 60/100 GB | GitHub: healthy
+        (20015, 'Dana',   'Ironforge',   'Team',      14.0,  0, 0,  49.00, 'ACTIVE',
+         'dana@ironforge.io',    '7722', 0, None,         None,
+         6,   12, 30, None,
+         60.0,  'GitHub', 'healthy',      sync_date(1),  0),
     ]
 
     cursor.executemany(

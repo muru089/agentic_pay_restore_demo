@@ -1,5 +1,5 @@
-"""
-test_conversation.py -- Pay Restore Demo: Automated Conversation Test
+﻿"""
+test_conversation.py -- Orbit Demo: Automated Conversation Test
 ======================================================================
 Tests the multi-agent restore flow via ADK Runner.
 Run from c:\\Muru_Workspace (parent of pay_restore_demo):
@@ -362,7 +362,7 @@ async def run_test():
         import sqlite3 as _sqlite3
         import re as _re
 
-        _db_path = os.path.join(_project_dir, "agents_tools_db", "pay_restore.db")
+        _db_path = os.path.join(_project_dir, "agents_tools_db", "orbit.db")
         _db  = _sqlite3.connect(_db_path)
         _cur = _db.cursor()
 

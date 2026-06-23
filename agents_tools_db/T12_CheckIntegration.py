@@ -1,4 +1,4 @@
-"""
+﻿"""
 T12_CheckIntegration
 --------------------
 WHAT THIS TOOL DOES:
@@ -112,7 +112,7 @@ def T12_CheckIntegration(conn, account_id):
 # =============================================================================
 if __name__ == "__main__":
     import os
-    DB_PATH = os.path.join(os.path.dirname(__file__), "pay_restore.db")
+    DB_PATH = os.path.join(os.path.dirname(__file__), "orbit.db")
     conn = sqlite3.connect(DB_PATH)
 
     print("=== T12_CheckIntegration -- Manual Test Run ===\n")

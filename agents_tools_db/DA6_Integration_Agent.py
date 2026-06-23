@@ -1,4 +1,4 @@
-"""
+﻿"""
 DA6_Integration_Agent.py  --  da6_integration_agent
 =====================================================
 
@@ -22,9 +22,11 @@ import sqlite3
 import functools
 from typing import Any
 from google.adk.agents import Agent
+from google.adk.planners import BuiltInPlanner
 from google.adk.tools import FunctionTool
 from google.adk.tools.base_tool import BaseTool
 from google.adk.agents.callback_context import CallbackContext
+from google.genai import types as genai_types
 
 from .T12_CheckIntegration import T12_CheckIntegration
 from .log_setup            import get_logger
@@ -32,8 +34,9 @@ from .log_setup            import get_logger
 _log = get_logger("da6_integration")
 _SEP = "-" * 64
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "pay_restore.db")
-conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None)
+DB_PATH = os.path.join(os.path.dirname(__file__), "orbit.db")
+conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None, timeout=30.0)
+conn.execute("PRAGMA journal_mode=WAL")
 
 
 def create_db_tool(func, tool_name, description):
@@ -78,6 +81,7 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
 da6_integration_agent = Agent(
     name="DA6_IntegrationAgent",
     model="gemini-2.5-flash",
+    planner=BuiltInPlanner(thinking_config=genai_types.ThinkingConfig(thinking_budget=0)),
     tools=[t12_tool],
     before_tool_callback=_before_tool,
     after_tool_callback=_after_tool,
