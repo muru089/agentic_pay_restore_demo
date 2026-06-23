@@ -328,7 +328,10 @@ async function sendMessage(overrideText) {
   }
 
   hideWelcome();
-  addBubble('user', text);
+  // Don't show raw JSON card responses as a user bubble — the green
+  // "Payment Processed" card already provides the visual confirmation.
+  const isCardJson = overrideText && overrideText.startsWith('{"status"');
+  if (!isCardJson) addBubble('user', text);
   if (!overrideText) input.value = '';
   autoResize(input);
 
