@@ -628,7 +628,7 @@ flowchart TD
         the other three are future state. root_agent continues to own auth, routing, restore sequencing, and safety
         pre-flight &mdash; that doesn't change.
       </p>
-      <div class="mermaid" id="appendix-mermaid">
+      <div class="mermaid-pending" id="appendix-mermaid">
 graph TD
 
   USER(["Customer message"])
@@ -658,7 +658,7 @@ graph TD
     SAAn -.-> DASupp
   end
 
-  subgraph SAD ["SA-Diagnostics Supervisor (today: SA1)"]
+  subgraph SAD ["SA-Diagnostics Supervisor - built as SA1"]
     direction TB
     SADn["SA1 DiagnosticSupervisor\nparallel fan-out - urgency synthesis"]
     DA1d["DA1 AccountAgent\nshared read-only view"]
@@ -705,14 +705,6 @@ graph TD
         <span class="chip"><span class="dot" style="background:#d1d5db;"></span>Future agent (not built)</span>
       </div>
 
-      <div style="margin-top:20px;padding:16px 20px;background:#f0fdf4;border-radius:8px;border-left:3px solid #16a34a;font-size:13px;color:#374151;line-height:1.7;">
-        <strong>What's already built today (SA-Diagnostics):</strong> SA1_DiagnosticSupervisor fans out DA1, DA5, and DA6
-        in parallel, synthesises urgency, and surfaces the highest-impact finding.<br><br>
-        <strong>DA1 appears in two supervisors</strong> — SA-Account (primary ownership) and SA-Diagnostics (shared read-only view).
-        In this architecture, DA1 is a shared read-only agent: SA-Diagnostics calls it directly for the account health dimension
-        of a diagnostic fan-out. Primary writes (suspension, status changes) go through SA-Account. This is the standard
-        pattern for read-heavy agents that multiple supervisors need: one agent, two callers, no duplication of tool logic.
-      </div>
     </div>
   </div>
 </div>
@@ -727,10 +719,11 @@ graph TD
     arrow.style.transform = hidden ? 'rotate(90deg)' : '';
     btn.querySelector('span:last-child').textContent = hidden ? 'Click to collapse' : 'Click to expand';
     if (hidden) {
-      // Mermaid v10 API: remove processed flag then re-run on the element
       const el = document.getElementById('appendix-mermaid');
-      el.removeAttribute('data-processed');
-      setTimeout(() => { mermaid.run({ nodes: [el] }); }, 50);
+      if (!el.classList.contains('mermaid')) {
+        el.classList.add('mermaid');
+        setTimeout(() => { mermaid.run({ nodes: [el] }); }, 50);
+      }
     }
   }
 </script>
