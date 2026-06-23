@@ -154,6 +154,23 @@ Reset DB before each session: `py pay_restore_demo/agents_tools_db/z_reset_world
 
 ---
 
+#### S10b · Taylor 20012 · Active account — $0 balance + new card update request
+**Account:** Active, valid card (4499), Team plan, 11 months, autopay ON, $0 balance
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "I need help with my account. 20012. Can you tell me my balance." |
+| 2 | "I want to make a payment but with a new card. Before that, can you confirm what's the card on file?" |
+| 3 | "Yes, I'd like to update the card." *(optional — tests card update acknowledgement)* |
+
+**Expected turn 1:** T1 confirms ACTIVE, balance $0. "Hi Taylor! I've pulled up your Brightline account on the Team plan. Your account is all paid up — no balance due. What can I help you with today?"
+
+**Expected turn 2:** Agent confirms card on file (4499) AND proactively addresses the payment/new card intent — does NOT silently drop it. Response should cover both: "You have a card on file ending in 4499. Since your account has no balance due right now, there's nothing to pay — but if you'd like to update the card on file for future billing, I can take care of that. Would you like to add a new card?"
+
+**Key guardrail:** Agent must NOT call DA2 or T3 when balance = $0. Card update is informational — no charge occurs.
+
+---
+
 ### Group 5 — Canceled Account / Win-Back
 
 #### S11 · Parker 20011 · Canceled account — win-back

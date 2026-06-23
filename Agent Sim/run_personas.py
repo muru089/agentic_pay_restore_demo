@@ -1,5 +1,5 @@
 """
-run_personas.py -- Run all 11 persona scripts sequentially.
+run_personas.py -- Run all 15 persona scripts sequentially.
 Resets the DB before each persona. Prints a PASS/FAIL summary at the end.
 
 Run from c:\\Muru_Workspace:
@@ -241,6 +241,36 @@ PERSONAS = [
             "SA1 fan-out: DA1 + DA5 (T11: 45/500 GB = 9%, healthy) + DA6 (T12: GitHub auth_failure, 5 failures, action_required=True) in parallel",
             "SA1 synthesis: PRIMARY_FINDING=integration, culprit identified — NOT billing",
             "Turn 2: GitHub reconnect steps presented",
+        ],
+    },
+    {
+        "id": 14,
+        "label": "Priya 20014 — ACTIVE manual payer, $0 balance, card update request",
+        "account_id": 20014,
+        "turns": [
+            "I need help with my account. 20014. Can you tell me my balance.",
+            "I want to make a payment but with a new card. Before that, can you confirm what's the card on file?",
+        ],
+        "expect": [
+            "ACTIVE, balance $0, autopay OFF (manual payer)",
+            "Turn 1: 'Your account is all paid up — no balance due.'",
+            "Turn 2: confirms card on file (6691) AND addresses new card intent — offers card update for future billing",
+            "No DA2 called, no T3 charge (balance = $0)",
+        ],
+    },
+    {
+        "id": 15,
+        "label": "Dana 20015 — ACTIVE manual payer, $49 balance due, payment with new card",
+        "account_id": 20015,
+        "turns": [
+            "Account 20015. I have an invoice I need to pay.",
+            "Yes, charge my card on file.",
+        ],
+        "expect": [
+            "ACTIVE, balance $49, autopay OFF (manual payer)",
+            "Turn 1: invoice of $49 surfaced, card 7722 valid → offer card on file",
+            "Turn 2: consent → DA2 STATE 4 (T3: $49 charged to 7722, T8 receipt sent)",
+            "No fee waiver (Rule B — autopay OFF). No restore (ACTIVE account).",
         ],
     },
 ]
