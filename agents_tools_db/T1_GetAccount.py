@@ -45,7 +45,7 @@ def T1_GetAccount(conn, account_id):
         cursor.execute("""
             SELECT account_id, first_name, company_name, plan_name, status,
                    tenure_months, card_last4, card_expired, suspension_date,
-                   project_count, pending_balance
+                   project_count, pending_balance, email
             FROM customer_accounts
             WHERE account_id = ?
         """, (account_id,))
@@ -67,6 +67,7 @@ def T1_GetAccount(conn, account_id):
             "suspension_date": row[8],
             "project_count":   row[9],
             "pending_balance": row[10],
+            "email":           row[11],
         }
 
     except sqlite3.Error as e:

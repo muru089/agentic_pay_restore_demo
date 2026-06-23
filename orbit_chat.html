@@ -400,7 +400,9 @@ async function runSSE(text) {
       if (!raw) continue;
       try {
         const event = JSON.parse(raw);
-        if (event.content && event.content.parts && event.author !== 'user') {
+        // Only show root_agent's customer-facing response — filter out
+        // sub-agent internal messages (DA2, DA3, DA4, SA1, etc.)
+        if (event.content && event.content.parts && event.author === 'root_agent') {
           for (const part of event.content.parts) {
             if (part.text) {
               allAgentText += part.text;
@@ -556,12 +558,17 @@ function renderMarkdown(raw) {
 }
 
 function inlineFormat(text) {
-  return text
+  // Escape HTML entities first — prevents raw <tags> from leaking into innerHTML
+  const safe = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return safe
     // **bold** → <strong>
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     // *italic* (single) — skip if it's a stray list marker
     .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
-    // Escape any remaining bare asterisks
+    // Remove any remaining bare asterisks
     .replace(/\*/g, '');
 }
 
