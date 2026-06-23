@@ -631,66 +631,62 @@ flowchart TD
       <div class="mermaid" id="appendix-mermaid">
 graph TD
 
-  %% ── Customer + root ──────────────────────────────────────────────────
-  USER(["👤 Customer message"])
-  ROOT["🟣 root_agent  (Uber)\nauth · safety pre-flight · routing\npersistent restore state · RAG (T10)"]
+  USER(["Customer message"])
+  ROOT["root_agent  (Uber)\nauth - safety - routing\nrestore state - RAG"]
 
   USER --> ROOT
 
-  %% ── SA-Billing Supervisor ────────────────────────────────────────────
   subgraph SAB ["SA-Billing Supervisor"]
     direction TB
     SABn["SA-Billing Supervisor"]
-    DA2s["DA2 · BillingAgent\nbalance · payment · fee waiver"]
-    DAFr["DA-Fraud  (future)\nfraud detection · charge disputes"]
-    DAInv["DA-Invoice  (future)\ninvoice history · credit management"]
+    DA2s["DA2 BillingAgent\nbalance - payment - fee waiver"]
+    DAFr["DA-Fraud (future)\nfraud detection"]
+    DAInv["DA-Invoice (future)\ninvoice history"]
     SABn --> DA2s
-    SABn -.->|"future"| DAFr
-    SABn -.->|"future"| DAInv
+    SABn -.-> DAFr
+    SABn -.-> DAInv
   end
 
-  %% ── SA-Account Supervisor ────────────────────────────────────────────
   subgraph SAA ["SA-Account Supervisor"]
     direction TB
     SAAn["SA-Account Supervisor"]
-    DA1s["DA1 · AccountAgent\naccount status · data retention"]
-    DAId["DA-Identity  (future)\nauth · access control · SSO"]
-    DASupp["DA-Suspension  (future)\nsuspension rules · appeal flow"]
+    DA1s["DA1 AccountAgent\naccount status - data retention"]
+    DAId["DA-Identity (future)\nauth - access control"]
+    DASupp["DA-Suspension (future)\nsuspension rules"]
     SAAn --> DA1s
-    SAAn -.->|"future"| DAId
-    SAAn -.->|"future"| DASupp
+    SAAn -.-> DAId
+    SAAn -.-> DASupp
   end
 
-  %% ── SA-Diagnostics Supervisor (today's SA1) ──────────────────────────
-  subgraph SAD ["SA-Diagnostics Supervisor  (built: SA1_DiagnosticSupervisor)"]
+  subgraph SAD ["SA-Diagnostics Supervisor (today: SA1)"]
     direction TB
-    SADn["SA1_DiagnosticSupervisor\nparallel fan-out · urgency synthesis"]
-    DA1d["DA1 · AccountAgent\n(shared read-only view)"]
-    DA5s["DA5 · StorageAgent\nstorage check (T11)"]
-    DA6s["DA6 · IntegrationAgent\nintegration health (T12)"]
-    DAPerf["DA-Performance  (future)\nuptime · latency · log analysis"]
-    SADn --> DA1d & DA5s & DA6s
-    SADn -.->|"future"| DAPerf
+    SADn["SA1 DiagnosticSupervisor\nparallel fan-out - urgency synthesis"]
+    DA1d["DA1 AccountAgent\nshared read-only view"]
+    DA5s["DA5 StorageAgent\nstorage check T11"]
+    DA6s["DA6 IntegrationAgent\nintegration health T12"]
+    DAPerf["DA-Performance (future)\nuptime - latency"]
+    SADn --> DA1d
+    SADn --> DA5s
+    SADn --> DA6s
+    SADn -.-> DAPerf
   end
 
-  %% ── SA-Fulfillment Supervisor ────────────────────────────────────────
   subgraph SAF ["SA-Fulfillment Supervisor"]
     direction TB
     SAFn["SA-Fulfillment Supervisor"]
-    DA3s["DA3 · RestoreAgent\nrestore · receipt  (Squad)"]
-    DA4s["DA4 · PlanAgent\nplan change · receipt  (Squad)"]
-    DAProv["DA-Provisioning  (future)\nonboarding · seat management"]
-    SAFn --> DA3s & DA4s
-    SAFn -.->|"future"| DAProv
+    DA3s["DA3 RestoreAgent\nrestore - receipt (Squad)"]
+    DA4s["DA4 PlanAgent\nplan change - receipt (Squad)"]
+    DAProv["DA-Provisioning (future)\nonboarding - seat management"]
+    SAFn --> DA3s
+    SAFn --> DA4s
+    SAFn -.-> DAProv
   end
 
-  %% ── Routing ──────────────────────────────────────────────────────────
-  ROOT -->|"billing / payment"| SABn
-  ROOT -->|"account status\ndata check"| SAAn
-  ROOT -->|"multi-dim\nhealth complaint"| SADn
-  ROOT -->|"restore\nplan change"| SAFn
+  ROOT -->|"billing/payment"| SABn
+  ROOT -->|"account/data check"| SAAn
+  ROOT -->|"health complaint"| SADn
+  ROOT -->|"restore/plan change"| SAFn
 
-  %% ── Styles ───────────────────────────────────────────────────────────
   classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
   classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
   classDef today      fill:#dcfce7,stroke:#16a34a,color:#1a1a2e,font-weight:600
@@ -731,8 +727,10 @@ graph TD
     arrow.style.transform = hidden ? 'rotate(90deg)' : '';
     btn.querySelector('span:last-child').textContent = hidden ? 'Click to collapse' : 'Click to expand';
     if (hidden) {
-      // Re-run mermaid on the newly visible diagram
-      setTimeout(() => { mermaid.init(undefined, document.getElementById('appendix-mermaid')); }, 50);
+      // Mermaid v10 API: remove processed flag then re-run on the element
+      const el = document.getElementById('appendix-mermaid');
+      el.removeAttribute('data-processed');
+      setTimeout(() => { mermaid.run({ nodes: [el] }); }, 50);
     }
   }
 </script>
