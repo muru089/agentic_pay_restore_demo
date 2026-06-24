@@ -56,9 +56,36 @@
     gap: 16px;
   }
 
+  /* Message wrapper (row + timestamp + chips stack vertically) */
+  .msg-wrap { display: flex; flex-direction: column; }
+
   /* Bubbles */
   .msg { display: flex; gap: 10px; align-items: flex-end; }
   .msg.user { flex-direction: row-reverse; }
+
+  /* Timestamps */
+  .msg-time {
+    font-size: 10px;
+    color: #9ca3af;
+    margin-top: 2px;
+    padding: 0 44px;
+  }
+  .msg-wrap.user .msg-time { text-align: right; }
+  .msg-wrap.agent .msg-time { text-align: left; }
+
+  /* Context chips (post-response suggestions) */
+  .context-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 44px 0;
+  }
+  .context-chip {
+    background: #ede9fe; color: #5b4cf5; font-size: 12px; font-weight: 500;
+    padding: 5px 12px; border-radius: 20px; cursor: pointer; border: none;
+    transition: background 0.15s;
+  }
+  .context-chip:hover { background: #ddd6fe; }
 
   .avatar {
     width: 32px; height: 32px; border-radius: 50%;
@@ -166,6 +193,36 @@
     margin-top: 12px;
   }
 
+  /* Receipt confirmation card */
+  .receipt-card {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;
+    padding: 12px 14px; margin-top: 12px;
+  }
+  .receipt-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #16a34a; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; flex-shrink: 0;
+  }
+  .receipt-title { font-size: 13px; font-weight: 700; color: #065f46; }
+  .receipt-ref   { font-size: 12px; color: #16a34a; margin-top: 2px; font-family: monospace; }
+  .receipt-note  { font-size: 11px; color: #6b7280; margin-top: 4px; }
+
+  /* Error banner */
+  .error-banner {
+    display: flex; align-items: center; gap: 10px;
+    background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px;
+    padding: 12px 16px; color: #dc2626; font-size: 13px;
+    margin: 4px 0;
+  }
+  .error-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .error-banner span { flex: 1; }
+  .error-banner button {
+    background: none; border: none; color: #dc2626; cursor: pointer;
+    font-size: 14px; padding: 0 4px;
+  }
+
   /* Input bar */
   .input-bar {
     background: #fff;
@@ -226,6 +283,25 @@
     transition: background 0.15s;
   }
   .chip:hover { background: #ddd6fe; }
+
+  /* Mobile responsive */
+  @media (max-width: 640px) {
+    nav { padding: 0 14px; height: 50px; }
+    .nav-title { display: none; }
+    .chat-wrap { padding: 0 8px; }
+    .bubble { max-width: 88%; font-size: 13px; padding: 10px 12px; }
+    .messages { padding: 16px 0 10px; gap: 10px; }
+    .msg-time { padding: 0 36px; }
+    .context-chips { padding: 4px 36px 0; }
+    .input-bar { padding: 10px 12px; }
+    .input-row { gap: 8px; }
+    textarea { font-size: 14px; padding: 9px 12px; }
+    button#micBtn, button#sendBtn { width: 38px; height: 38px; }
+    .welcome { padding: 24px 16px; }
+    .welcome h2 { font-size: 18px; }
+    .welcome-chips { gap: 6px; }
+    .chip { font-size: 12px; padding: 5px 12px; }
+  }
 </style>
 </head>
 <body>
@@ -242,7 +318,7 @@
 <div class="chat-wrap">
   <div class="messages" id="messages">
     <div class="welcome" id="welcome">
-      <div class="welcome-icon">👋</div>
+      <div class="welcome-icon">&#128075;</div>
       <h2>Hi, I'm Orbit AI</h2>
       <p>I can help with your account, billing, plan changes, or any questions about Orbit. What can I help you with today?</p>
       <div class="welcome-chips">
@@ -256,7 +332,7 @@
 
   <div class="input-bar">
     <div class="input-row">
-      <textarea id="userInput" rows="1" placeholder="Type a message…"></textarea>
+      <textarea id="userInput" rows="1" placeholder="Type a message&#8230;"></textarea>
       <button id="micBtn" title="Speak your message" onclick="toggleMic()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="9" y="2" width="6" height="11" rx="3"/>
@@ -272,7 +348,7 @@
         </svg>
       </button>
     </div>
-    <p class="input-hint">Orbit AI · Powered by Google ADK &nbsp;·&nbsp; Responses may not cover every scenario</p>
+    <p class="input-hint">Orbit AI &middot; Powered by Google ADK &nbsp;&middot;&nbsp; Responses may not cover every scenario</p>
   </div>
 </div>
 
@@ -289,12 +365,12 @@ let pendingCardResolve = null;
 
 async function initSession() {
   try {
-    const res = await fetch(`${BASE_URL}/apps/${APP_NAME}/users/${USER_ID}/sessions`, {
+    const res = await fetch(BASE_URL + '/apps/' + APP_NAME + '/users/' + USER_ID + '/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const session = await res.json();
     sessionId = session.id;
     setStatus('online', 'Online');
@@ -321,18 +397,21 @@ function containsCardNumber(text) {
 
 async function sendMessage(overrideText) {
   const input = document.getElementById('userInput');
-  const text  = overrideText ?? input.value.trim();
+  const text  = overrideText != null ? overrideText : input.value.trim();
   if (!text || isWaiting) return;
   if (!sessionId) {
-    addBubble('agent', "Still connecting to the backend — please wait a moment and try again.");
+    addErrorBanner('Still connecting to the backend — please wait a moment and try again.');
     return;
   }
 
   // If card form is visible and user typed a new message, dismiss the form
   if (pendingCardResolve && !overrideText) {
     const form = document.getElementById('cardForm');
-    if (form) form.closest('.msg')?.remove();
-    const resolve = pendingCardResolve;
+    if (form) {
+      const parentMsg = form.closest('.msg');
+      if (parentMsg) parentMsg.remove();
+    }
+    var resolve = pendingCardResolve;
     pendingCardResolve = null;
     resolve({ status: 'dismissed' });
   }
@@ -344,13 +423,12 @@ async function sendMessage(overrideText) {
     addBubble('user', text);
     input.value = '';
     autoResize(input);
-    // Show security warning as agent bubble (client-side — raw number never reaches backend)
     addBubble('agent',
       "For your security, please don’t share card details directly in this chat window " +
       "— I’ve got a secure form ready for you instead.");
     isWaiting = false;
     setInput(true);
-    showCardForm().then(cardResult => {
+    showCardForm().then(function(cardResult) {
       if (cardResult && cardResult.status === 'success') {
         sendMessage(JSON.stringify(cardResult));
       }
@@ -361,27 +439,50 @@ async function sendMessage(overrideText) {
   hideWelcome();
   // Don't show raw JSON card responses as a user bubble — the green
   // "Payment Processed" card already provides the visual confirmation.
-  const isCardJson = overrideText && overrideText.startsWith('{"status"');
+  var isCardJson = overrideText && overrideText.indexOf('{"status"') === 0;
   if (!isCardJson) addBubble('user', text);
   if (!overrideText) input.value = '';
   autoResize(input);
 
   isWaiting = true;
   setInput(false);
-  const typingId = addTyping();
+  var typingId = addTyping();
+
+  // Streaming state
+  var streamRow    = null;   // the .msg-wrap element created on first chunk
+  var streamBubble = null;   // the .bubble element inside streamRow
+  var accumulated  = '';
+  var firstChunk   = true;
 
   try {
-    const agentText = await runSSE(text);
-    removeTyping(typingId);
+    await runSSE(text, function(chunkText) {
+      accumulated = chunkText;
 
-    if (agentText.includes('__CARD_FORM__')) {
-      const before = agentText.split('__CARD_FORM__')[0].trim();
-      if (before) addBubble('agent', before);
+      if (firstChunk) {
+        firstChunk = false;
+        removeTyping(typingId);
+        // Create streaming bubble on first chunk
+        streamRow    = addBubbleNode('agent', '', null);
+        streamBubble = streamRow.querySelector('.bubble');
+      }
+
+      // displayText hides __CARD_FORM__ token during streaming
+      var displayText = accumulated.split('__CARD_FORM__')[0].trim();
+      if (streamBubble) {
+        streamBubble.innerHTML = renderMarkdown(displayText);
+      }
+      scrollBottom();
+    });
+
+    // SSE complete
+    var agentText = accumulated || "I didn’t catch a response — please try again.";
+
+    if (agentText.indexOf('__CARD_FORM__') !== -1) {
+      // Bubble already shows pre-token text from streaming.
       // Re-enable input immediately — card form is non-blocking.
-      // User can type a message instead of using the form.
       isWaiting = false;
       setInput(true);
-      showCardForm().then(cardResult => {
+      showCardForm().then(function(cardResult) {
         if (cardResult && cardResult.status === 'success') {
           sendMessage(JSON.stringify(cardResult));
         }
@@ -390,10 +491,20 @@ async function sendMessage(overrideText) {
       return;
     }
 
-    addBubble('agent', agentText);
+    if (!streamRow) {
+      // Nothing streamed at all — fall back to static bubble
+      addBubble('agent', agentText);
+    } else {
+      // Final render already done in streaming callback; inject receipt card if applicable
+      var card = buildReceiptCard(agentText);
+      if (card && streamBubble) streamBubble.appendChild(card);
+      // Show contextual chips (skip for card JSON responses)
+      if (!isCardJson) showContextChips(agentText, streamRow);
+    }
+
   } catch (e) {
     removeTyping(typingId);
-    addBubble('agent', "I'm having trouble connecting right now. Please try again in a moment.");
+    addErrorBanner("I’m having trouble connecting right now. Please try again in a moment.");
     console.error('SSE error:', e);
   }
 
@@ -401,46 +512,51 @@ async function sendMessage(overrideText) {
   setInput(true);
 }
 
-async function runSSE(text) {
-  const res = await fetch(`${BASE_URL}/run_sse`, {
+// runSSE accepts an optional onChunk(accumulatedText) callback.
+// Called each time a new text part arrives from root_agent.
+async function runSSE(text, onChunk) {
+  var res = await fetch(BASE_URL + '/run_sse', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      app_name: APP_NAME,
-      user_id:  USER_ID,
-      session_id: sessionId,
-      new_message: { role: 'user', parts: [{ text }] }
+      app_name:    APP_NAME,
+      user_id:     USER_ID,
+      session_id:  sessionId,
+      new_message: { role: 'user', parts: [{ text: text }] }
     })
   });
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
 
-  const reader  = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let allAgentText = '';   // accumulated across all events
-  let lastEventText = '';  // text from the most recent event (used as fallback)
+  var reader  = res.body.getReader();
+  var decoder = new TextDecoder();
+  var buffer       = '';
+  var allAgentText = '';   // accumulated across all events
+  var lastEventText = ''; // text from the most recent event (fallback)
 
   while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
+    var chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    var lines = buffer.split('\n');
     buffer = lines.pop();
 
-    for (const line of lines) {
-      if (!line.startsWith('data:')) continue;
-      const raw = line.slice(5).trim();
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line.indexOf('data:') !== 0) continue;
+      var raw = line.slice(5).trim();
       if (!raw) continue;
       try {
-        const event = JSON.parse(raw);
+        var event = JSON.parse(raw);
         // Only show root_agent's customer-facing response — filter out
         // sub-agent internal messages (DA2, DA3, DA4, SA1, etc.)
         if (event.content && event.content.parts && event.author === 'root_agent') {
-          for (const part of event.content.parts) {
+          for (var j = 0; j < event.content.parts.length; j++) {
+            var part = event.content.parts[j];
             if (part.text) {
               allAgentText += part.text;
               lastEventText = part.text;
+              if (onChunk) onChunk(allAgentText);
             }
           }
         }
@@ -448,66 +564,157 @@ async function runSSE(text) {
     }
   }
 
-  // Use accumulated text (catches __CARD_FORM__ even if it arrived in a middle chunk).
-  // Fall back to lastEventText if accumulation produced nothing useful.
-  return allAgentText || lastEventText || "I didn't catch a response — please try again.";
+  return allAgentText || lastEventText || "I didn’t catch a response — please try again.";
+}
+
+// ── Contextual chips (mid-conversation) ──────────────────────────────────
+
+function showContextChips(agentText, wrapEl) {
+  if (isWaiting) return;
+  if (!agentText || agentText.indexOf('{"status"') === 0) return;
+
+  var t = agentText.toLowerCase();
+  var chips = [];
+
+  if (/data is safe|projects are intact|\d+ projects/.test(t)) {
+    chips = ['Pay now to restore', 'Tell me about Business plan', "What's the late fee?"];
+  } else if (/payment processed|charged to card/.test(t)) {
+    chips = ['Upgrade my plan', 'What changed on my account?'];
+  } else if (/account is now active|back online|restored/.test(t)) {
+    chips = ['Upgrade my plan', 'Check my balance'];
+  } else if (/plan options|business plan|team plan|individual plan/.test(t)) {
+    chips = ['How do upgrades work?', 'What are seat limits?', 'Compare plans'];
+  } else if (/fee waiver|late fee/.test(t)) {
+    chips = ['How do I qualify next time?', 'Tell me about AutoPay'];
+  }
+
+  if (!chips.length) return;
+
+  var chipRow = document.createElement('div');
+  chipRow.className = 'context-chips';
+
+  chips.forEach(function(label) {
+    var btn = document.createElement('button');
+    btn.className = 'context-chip';
+    btn.textContent = label;
+    btn.onclick = function() {
+      chipRow.remove();
+      sendMessage(label);
+    };
+    chipRow.appendChild(btn);
+  });
+
+  wrapEl.appendChild(chipRow);
+  scrollBottom();
+}
+
+// ── Receipt / confirmation card ───────────────────────────────────────────
+
+function buildReceiptCard(text) {
+  if (!text) return null;
+  var t = text.toLowerCase();
+
+  var hasOrder  = /#ord-/i.test(text);
+  var isPayment = /payment processed|charged to card/.test(t);
+  var isRestore = /account is now active|back online|restored/.test(t);
+  var isPlan    = /plan/.test(t) && /(upgraded|changed|active for)/.test(t);
+
+  if (!hasOrder && !isPayment && !isRestore && !isPlan) return null;
+
+  // Restore takes priority in title selection
+  var title = 'Confirmed';
+  if (isPayment) title = 'Payment Confirmed';
+  if (isPlan)    title = 'Plan Updated';
+  if (isRestore) title = 'Account Restored';
+
+  var orderMatch = text.match(/#ORD-[A-Z0-9]+/i);
+  var orderRef   = orderMatch ? orderMatch[0].toUpperCase() : '';
+
+  var card = document.createElement('div');
+  card.className = 'receipt-card';
+  card.innerHTML =
+    '<div class="receipt-icon">&#10003;</div>' +
+    '<div class="receipt-body">' +
+      '<div class="receipt-title">' + title + '</div>' +
+      (orderRef ? '<div class="receipt-ref">' + orderRef + '</div>' : '') +
+      '<div class="receipt-note">Confirmation sent to your email on file</div>' +
+    '</div>';
+  return card;
+}
+
+// ── Error banner ──────────────────────────────────────────────────────────
+
+function addErrorBanner(msg) {
+  var msgs   = document.getElementById('messages');
+  var banner = document.createElement('div');
+  banner.className = 'error-banner';
+  banner.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>' +
+      '<line x1="12" y1="9" x2="12" y2="13"/>' +
+      '<line x1="12" y1="17" x2="12.01" y2="17"/>' +
+    '</svg>' +
+    '<span>' + msg + '</span>' +
+    '<button onclick="this.parentElement.remove()">&#x2715;</button>';
+  msgs.appendChild(banner);
+  scrollBottom();
 }
 
 // ── Card form (inline) ────────────────────────────────────────────────────
 
 function showCardForm() {
-  return new Promise((resolve) => {
+  return new Promise(function(resolve) {
     pendingCardResolve = resolve;
 
-    const formHtml = `
-      <div class="card-form" id="cardForm">
-        <h4>Secure Card Details</h4>
-        <div class="field">
-          <label>Card Number</label>
-          <input type="text" id="cfNum" placeholder="XXXX XXXX XXXX XXXX" maxlength="19"
-                 oninput="formatCardNum(this)" />
-          <div class="field-hint">16 digits · e.g. 4111 1111 1111 9988</div>
-          <div class="field-error" id="cfNumErr">Please enter a valid 16-digit card number.</div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label>Expiry (MM/YY)</label>
-            <input type="text" id="cfExp" placeholder="MM/YY" maxlength="5"
-                   oninput="formatExpiry(this)" />
-            <div class="field-error" id="cfExpErr">Invalid or expired date.</div>
-          </div>
-          <div class="field">
-            <label>CVV</label>
-            <input type="text" id="cfCvv" placeholder="123" maxlength="3"
-                   oninput="this.value=this.value.replace(/\\D/g,'')" />
-            <div class="field-error" id="cfCvvErr">3 digits required.</div>
-          </div>
-        </div>
-        <button class="card-submit" onclick="submitCard()">Pay Securely</button>
-      </div>`;
+    var formHtml =
+      '<div class="card-form" id="cardForm">' +
+        '<h4>Secure Card Details</h4>' +
+        '<div class="field">' +
+          '<label>Card Number</label>' +
+          '<input type="text" id="cfNum" placeholder="XXXX XXXX XXXX XXXX" maxlength="19"' +
+                 ' oninput="formatCardNum(this)" />' +
+          '<div class="field-hint">16 digits &middot; e.g. 4111 1111 1111 9988</div>' +
+          '<div class="field-error" id="cfNumErr">Please enter a valid 16-digit card number.</div>' +
+        '</div>' +
+        '<div class="field-row">' +
+          '<div class="field">' +
+            '<label>Expiry (MM/YY)</label>' +
+            '<input type="text" id="cfExp" placeholder="MM/YY" maxlength="5"' +
+                   ' oninput="formatExpiry(this)" />' +
+            '<div class="field-error" id="cfExpErr">Invalid or expired date.</div>' +
+          '</div>' +
+          '<div class="field">' +
+            '<label>CVV</label>' +
+            '<input type="text" id="cfCvv" placeholder="123" maxlength="3"' +
+                   ' oninput="this.value=this.value.replace(/\\D/g,\'\')" />' +
+            '<div class="field-error" id="cfCvvErr">3 digits required.</div>' +
+          '</div>' +
+        '</div>' +
+        '<button class="card-submit" onclick="submitCard()">Pay Securely</button>' +
+      '</div>';
 
-    const wrap = document.createElement('div');
+    var wrap = document.createElement('div');
     wrap.innerHTML = formHtml;
-    const msgWrap = addBubbleNode('agent', '', wrap.firstElementChild);
+    addBubbleNode('agent', '', wrap.firstElementChild);
     scrollBottom();
   });
 }
 
 function formatCardNum(el) {
-  let v = el.value.replace(/\D/g, '').slice(0, 16);
+  var v = el.value.replace(/\D/g, '').slice(0, 16);
   el.value = v.replace(/(.{4})/g, '$1 ').trim();
 }
 
 function formatExpiry(el) {
-  let v = el.value.replace(/\D/g, '').slice(0, 4);
+  var v = el.value.replace(/\D/g, '').slice(0, 4);
   if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
   el.value = v;
 }
 
 function luhn(num) {
-  let sum = 0, alt = false;
-  for (let i = num.length - 1; i >= 0; i--) {
-    let d = parseInt(num[i]);
+  var sum = 0, alt = false;
+  for (var i = num.length - 1; i >= 0; i--) {
+    var d = parseInt(num[i]);
     if (alt) { d *= 2; if (d > 9) d -= 9; }
     sum += d;
     alt = !alt;
@@ -516,43 +723,43 @@ function luhn(num) {
 }
 
 function validExpiry(val) {
-  const parts = val.split('/');
+  var parts = val.split('/');
   if (parts.length !== 2) return false;
-  const mm = parseInt(parts[0]), yy = parseInt(parts[1]);
+  var mm = parseInt(parts[0]), yy = parseInt(parts[1]);
   if (isNaN(mm) || isNaN(yy)) return false;
-  const now = new Date();
-  const exp = new Date(2000 + yy, mm - 1, 1);
+  var now = new Date();
+  var exp = new Date(2000 + yy, mm - 1, 1);
   return exp > now;
 }
 
 function submitCard() {
-  const numRaw = document.getElementById('cfNum').value.replace(/\s/g, '');
-  const exp    = document.getElementById('cfExp').value.trim();
-  const cvv    = document.getElementById('cfCvv').value.trim();
+  var numRaw = document.getElementById('cfNum').value.replace(/\s/g, '');
+  var exp    = document.getElementById('cfExp').value.trim();
+  var cvv    = document.getElementById('cfCvv').value.trim();
 
-  let valid = true;
+  var valid = true;
 
-  const numOk = numRaw.length === 16 && !/0{4,}/.test(numRaw) && !/^(.)\1{15}$/.test(numRaw);
+  var numOk = numRaw.length === 16 && !/0{4,}/.test(numRaw) && !/^(.)\1{15}$/.test(numRaw);
   showFieldError('cfNum', 'cfNumErr', !numOk);
   if (!numOk) valid = false;
 
-  const expOk = validExpiry(exp);
+  var expOk = validExpiry(exp);
   showFieldError('cfExp', 'cfExpErr', !expOk);
   if (!expOk) valid = false;
 
-  const cvvOk = /^\d{3}$/.test(cvv);
+  var cvvOk = /^\d{3}$/.test(cvv);
   showFieldError('cfCvv', 'cfCvvErr', !cvvOk);
   if (!cvvOk) valid = false;
 
   if (!valid) return;
 
-  const last4 = numRaw.slice(-4);
+  var last4 = numRaw.slice(-4);
 
   // Swap form for success message
-  const form = document.getElementById('cardForm');
-  const success = document.createElement('div');
+  var form    = document.getElementById('cardForm');
+  var success = document.createElement('div');
   success.className = 'payment-success';
-  success.innerHTML = `<span>✓</span> Payment Processed &nbsp;·&nbsp; Card ending ${last4}`;
+  success.innerHTML = '<span>&#10003;</span> Payment Processed &nbsp;&middot;&nbsp; Card ending ' + last4;
   form.replaceWith(success);
   scrollBottom();
 
@@ -570,58 +777,72 @@ function showFieldError(inputId, errId, show) {
 // ── Markdown renderer (agent bubbles only) ────────────────────────────────
 
 function renderMarkdown(raw) {
-  // Split into blocks on blank lines
-  const blocks = raw.trim().split(/\n{2,}/);
-  return blocks.map(block => {
-    const lines = block.trim().split('\n');
+  var blocks = raw.trim().split(/\n{2,}/);
+  return blocks.map(function(block) {
+    var lines = block.trim().split('\n');
 
     // Detect bullet list block (lines starting with * or -)
-    const isList = lines.every(l => /^\s*[\*\-]\s+/.test(l));
+    var isList = lines.every(function(l) { return /^\s*[\*\-]\s+/.test(l); });
     if (isList) {
-      const items = lines.map(l => {
-        const content = l.replace(/^\s*[\*\-]\s+/, '');
-        return `<li>${inlineFormat(content)}</li>`;
+      var items = lines.map(function(l) {
+        var content = l.replace(/^\s*[\*\-]\s+/, '');
+        return '<li>' + inlineFormat(content) + '</li>';
       }).join('');
-      return `<ul>${items}</ul>`;
+      return '<ul>' + items + '</ul>';
     }
 
-    // Plain paragraph — join lines, apply inline formatting
-    const para = lines.join(' ');
-    return `<p>${inlineFormat(para)}</p>`;
+    // Plain paragraph
+    var para = lines.join(' ');
+    return '<p>' + inlineFormat(para) + '</p>';
   }).join('');
 }
 
 function inlineFormat(text) {
-  // Escape HTML entities first — prevents raw <tags> from leaking into innerHTML
-  const safe = text
+  var safe = text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
   return safe
-    // **bold** → <strong>
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    // *italic* (single) — skip if it's a stray list marker
     .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
-    // Remove any remaining bare asterisks
     .replace(/\*/g, '');
 }
 
 // ── DOM helpers ───────────────────────────────────────────────────────────
 
-function addBubble(role, text) {
-  addBubbleNode(role, text, null);
+function nowTime() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function addBubbleNode(role, text, extraNode) {
-  const msgs = document.getElementById('messages');
-  const row  = document.createElement('div');
-  row.className = `msg ${role}`;
+// addBubble: creates a full bubble with receipt card + context chips for agent messages.
+// Returns the outer .msg-wrap element.
+function addBubble(role, text) {
+  var wrapEl = addBubbleNode(role, text, null);
+  if (role === 'agent' && text) {
+    var bubble = wrapEl.querySelector('.bubble');
+    var card   = buildReceiptCard(text);
+    if (card && bubble) bubble.appendChild(card);
+    if (!isWaiting) showContextChips(text, wrapEl);
+  }
+  return wrapEl;
+}
 
-  const avatar = document.createElement('div');
-  avatar.className = `avatar ${role}`;
+// addBubbleNode: low-level bubble creation. Returns the outer .msg-wrap element.
+function addBubbleNode(role, text, extraNode) {
+  var msgs = document.getElementById('messages');
+
+  // Outer wrapper stacks row + timestamp + chips vertically
+  var wrap = document.createElement('div');
+  wrap.className = 'msg-wrap ' + role;
+
+  var row = document.createElement('div');
+  row.className = 'msg ' + role;
+
+  var avatar = document.createElement('div');
+  avatar.className = 'avatar ' + role;
   avatar.textContent = role === 'agent' ? 'AI' : 'You';
 
-  const bubble = document.createElement('div');
+  var bubble = document.createElement('div');
   bubble.className = 'bubble';
   if (text) {
     if (role === 'agent') {
@@ -640,32 +861,40 @@ function addBubbleNode(role, text, extraNode) {
     row.appendChild(avatar);
   }
 
-  msgs.appendChild(row);
+  // Timestamp beneath the row
+  var timeEl = document.createElement('div');
+  timeEl.className = 'msg-time';
+  timeEl.textContent = nowTime();
+
+  wrap.appendChild(row);
+  wrap.appendChild(timeEl);
+
+  msgs.appendChild(wrap);
   scrollBottom();
-  return row;
+  return wrap;
 }
 
-let typingCounter = 0;
+var typingCounter = 0;
 function addTyping() {
-  const id = 'typing-' + (++typingCounter);
-  const msgs = document.getElementById('messages');
-  const row  = document.createElement('div');
+  var id   = 'typing-' + (++typingCounter);
+  var msgs = document.getElementById('messages');
+  var row  = document.createElement('div');
   row.className = 'msg agent';
   row.id = id;
 
-  const avatar = document.createElement('div');
+  var avatar = document.createElement('div');
   avatar.className = 'avatar agent';
   avatar.textContent = 'AI';
 
-  const bubble = document.createElement('div');
+  var bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.innerHTML = `
-    <div class="thinking-wrap">
-      <div class="thinking-spinner"></div>
-      <span class="thinking-label" id="${id}-label">
-        Thinking<span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
-      </span>
-    </div>`;
+  bubble.innerHTML =
+    '<div class="thinking-wrap">' +
+      '<div class="thinking-spinner"></div>' +
+      '<span class="thinking-label" id="' + id + '-label">' +
+        'Thinking<span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>' +
+      '</span>' +
+    '</div>';
 
   row.appendChild(avatar);
   row.appendChild(bubble);
@@ -673,8 +902,8 @@ function addTyping() {
   scrollBottom();
 
   // After 8s, update label to signal longer processing
-  const timer = setTimeout(() => {
-    const lbl = document.getElementById(`${id}-label`);
+  var timer = setTimeout(function() {
+    var lbl = document.getElementById(id + '-label');
     if (lbl) lbl.innerHTML = 'Still working on it<span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>';
   }, 8000);
   row._thinkingTimer = timer;
@@ -683,16 +912,17 @@ function addTyping() {
 }
 
 function removeTyping(id) {
-  const el = document.getElementById(id);
+  var el = document.getElementById(id);
   if (el) { clearTimeout(el._thinkingTimer); el.remove(); }
 }
 
 function hideWelcome() {
-  document.getElementById('welcome')?.remove();
+  var w = document.getElementById('welcome');
+  if (w) w.remove();
 }
 
 function scrollBottom() {
-  const msgs = document.getElementById('messages');
+  var msgs = document.getElementById('messages');
   msgs.scrollTop = msgs.scrollHeight;
 }
 
@@ -712,46 +942,45 @@ function sendChip(btn) {
 }
 
 // ── Microphone (Web Speech API) ───────────────────────────────────────────
-let micRecognition = null;
-let micListening   = false;
+var micRecognition = null;
+var micListening   = false;
 
 function toggleMic() {
   if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    addBubble('agent', "Speech recognition isn't supported in this browser. Try Chrome.");
+    addBubble('agent', "Speech recognition isn’t supported in this browser. Try Chrome.");
     return;
   }
   if (micListening) {
-    micRecognition?.stop();
+    if (micRecognition) micRecognition.stop();
     return;
   }
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   micRecognition = new SR();
   micRecognition.lang = 'en-US';
   micRecognition.interimResults = true;
   micRecognition.continuous = false;
 
-  micRecognition.onstart = () => {
+  micRecognition.onstart = function() {
     micListening = true;
     document.getElementById('micBtn').classList.add('listening');
     document.getElementById('userInput').placeholder = 'Listening…';
   };
 
-  micRecognition.onresult = (e) => {
-    const transcript = Array.from(e.results)
-      .map(r => r[0].transcript).join('');
-    const input = document.getElementById('userInput');
+  micRecognition.onresult = function(e) {
+    var transcript = Array.from(e.results)
+      .map(function(r) { return r[0].transcript; }).join('');
+    var input = document.getElementById('userInput');
     input.value = transcript;
     autoResize(input);
-    // If final result, send automatically
     if (e.results[e.results.length - 1].isFinal) {
       micRecognition.stop();
-      setTimeout(() => sendMessage(), 300);
+      setTimeout(function() { sendMessage(); }, 300);
     }
   };
 
-  micRecognition.onerror = () => { micRecognition.stop(); };
+  micRecognition.onerror = function() { micRecognition.stop(); };
 
-  micRecognition.onend = () => {
+  micRecognition.onend = function() {
     micListening = false;
     document.getElementById('micBtn').classList.remove('listening');
     document.getElementById('userInput').placeholder = 'Type a message…';
@@ -761,7 +990,7 @@ function toggleMic() {
 }
 
 // Enter to send (Shift+Enter = newline)
-document.getElementById('userInput').addEventListener('keydown', (e) => {
+document.getElementById('userInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 document.getElementById('userInput').addEventListener('input', function() { autoResize(this); });
