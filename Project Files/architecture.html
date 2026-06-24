@@ -658,6 +658,17 @@ graph TD
     SAAn -.-> DASupp
   end
 
+  subgraph SAF ["SA-Fulfillment Supervisor"]
+    direction TB
+    SAFn["SA-Fulfillment Supervisor"]
+    DA3s["DA3 RestoreAgent\nrestore - receipt (Squad)"]
+    DA4s["DA4 PlanAgent\nplan change - receipt (Squad)"]
+    DAProv["DA-Provisioning (future)\nonboarding - seat management"]
+    SAFn --> DA3s
+    SAFn --> DA4s
+    SAFn -.-> DAProv
+  end
+
   subgraph SAD ["SA-Diagnostics Supervisor - built as SA1"]
     direction TB
     SADn["SA1 DiagnosticSupervisor\nparallel fan-out - urgency synthesis"]
@@ -671,21 +682,10 @@ graph TD
     SADn -.-> DAPerf
   end
 
-  subgraph SAF ["SA-Fulfillment Supervisor"]
-    direction TB
-    SAFn["SA-Fulfillment Supervisor"]
-    DA3s["DA3 RestoreAgent\nrestore - receipt (Squad)"]
-    DA4s["DA4 PlanAgent\nplan change - receipt (Squad)"]
-    DAProv["DA-Provisioning (future)\nonboarding - seat management"]
-    SAFn --> DA3s
-    SAFn --> DA4s
-    SAFn -.-> DAProv
-  end
-
   ROOT -->|"billing/payment"| SABn
   ROOT -->|"account/data check"| SAAn
-  ROOT -->|"health complaint"| SADn
   ROOT -->|"restore/plan change"| SAFn
+  ROOT -->|"health complaint"| SADn
 
   classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
   classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
