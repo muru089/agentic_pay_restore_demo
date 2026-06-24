@@ -636,50 +636,55 @@ graph TD
 
   USER --> ROOT
 
-  subgraph SAB ["SA-Billing Supervisor"]
-    direction TB
-    SABn["SA-Billing Supervisor"]
-    DA2s["DA2 BillingAgent\nbalance - payment - fee waiver"]
-    DAFr["DA-Fraud (future)\nfraud detection"]
-    DAInv["DA-Invoice (future)\ninvoice history"]
-    SABn --> DA2s
-    SABn -.-> DAFr
-    SABn -.-> DAInv
-  end
+  subgraph ROW [" "]
+    direction LR
 
-  subgraph SAA ["SA-Account Supervisor"]
-    direction TB
-    SAAn["SA-Account Supervisor"]
-    DA1s["DA1 AccountAgent\naccount status - data retention"]
-    DAId["DA-Identity (future)\nauth - access control"]
-    DASupp["DA-Suspension (future)\nsuspension rules"]
-    SAAn --> DA1s
-    SAAn -.-> DAId
-    SAAn -.-> DASupp
-  end
+    subgraph SAB ["SA-Billing Supervisor"]
+      direction TB
+      SABn["SA-Billing Supervisor"]
+      DA2s["DA2 BillingAgent\nbalance - payment - fee waiver"]
+      DAFr["DA-Dispute (future)\ncharge disputes"]
+      DAInv["DA-Invoice (future)\ninvoice history"]
+      SABn --> DA2s
+      SABn -.-> DAFr
+      SABn -.-> DAInv
+    end
 
-  subgraph SAF ["SA-Fulfillment Supervisor"]
-    direction TB
-    SAFn["SA-Fulfillment Supervisor"]
-    DA3s["DA3 RestoreAgent\nrestore - receipt (Squad)"]
-    DA4s["DA4 PlanAgent\nplan change - receipt (Squad)"]
-    DAProv["DA-Provisioning (future)\nonboarding - seat management"]
-    SAFn --> DA3s
-    SAFn --> DA4s
-    SAFn -.-> DAProv
-  end
+    subgraph SAA ["SA-Account Supervisor"]
+      direction TB
+      SAAn["SA-Account Supervisor"]
+      DA1s["DA1 AccountAgent\naccount status - data retention"]
+      DAId["DA-Identity (future)\nauth - access control"]
+      DASupp["DA-Suspension (future)\nsuspension rules"]
+      SAAn --> DA1s
+      SAAn -.-> DAId
+      SAAn -.-> DASupp
+    end
 
-  subgraph SAD ["SA-Diagnostics Supervisor - built as SA1"]
-    direction TB
-    SADn["SA1 DiagnosticSupervisor\nparallel fan-out - urgency synthesis"]
-    DA1d["DA1 AccountAgent\nshared read-only view"]
-    DA5s["DA5 StorageAgent\nstorage check T11"]
-    DA6s["DA6 IntegrationAgent\nintegration health T12"]
-    DAPerf["DA-Performance (future)\nuptime - latency"]
-    SADn --> DA1d
-    SADn --> DA5s
-    SADn --> DA6s
-    SADn -.-> DAPerf
+    subgraph SAF ["SA-Fulfillment Supervisor"]
+      direction TB
+      SAFn["SA-Fulfillment Supervisor"]
+      DA3s["DA3 RestoreAgent\nrestore - receipt (Squad)"]
+      DA4s["DA4 PlanAgent\nplan change - receipt (Squad)"]
+      DAProv["DA-Provisioning (future)\nonboarding - seat management"]
+      SAFn --> DA3s
+      SAFn --> DA4s
+      SAFn -.-> DAProv
+    end
+
+    subgraph SAD ["SA-Diagnostics Supervisor - built as SA1"]
+      direction TB
+      SADn["SA1 DiagnosticSupervisor\nparallel fan-out - urgency synthesis"]
+      DA1d["DA1 AccountAgent\nshared read-only view"]
+      DA5s["DA5 StorageAgent\nstorage check T11"]
+      DA6s["DA6 IntegrationAgent\nintegration health T12"]
+      DAPerf["DA-Performance (future)\nuptime - latency"]
+      SADn --> DA1d
+      SADn --> DA5s
+      SADn --> DA6s
+      SADn -.-> DAPerf
+    end
+
   end
 
   ROOT -->|"billing/payment"| SABn
@@ -687,7 +692,7 @@ graph TD
   ROOT -->|"restore/plan change"| SAFn
   ROOT -->|"health complaint"| SADn
 
-  SABn ~~~ SAAn ~~~ SAFn ~~~ SADn
+  style ROW fill:none,stroke:none
 
   classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
   classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
