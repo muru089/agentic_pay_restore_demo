@@ -195,6 +195,20 @@
   button#sendBtn:disabled { background: #c4b5fd; cursor: not-allowed; }
   button#sendBtn svg { width: 18px; height: 18px; }
 
+  button#micBtn {
+    background: none; border: 1.5px solid #e5e7eb; color: #9ca3af;
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: all 0.15s;
+  }
+  button#micBtn:hover { border-color: #5b4cf5; color: #5b4cf5; }
+  button#micBtn.listening {
+    background: #fee2e2; border-color: #dc2626; color: #dc2626;
+    animation: mic-pulse 1.2s ease-in-out infinite;
+  }
+  button#micBtn svg { width: 16px; height: 16px; }
+  @keyframes mic-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.3)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0)} }
+
   .input-hint { text-align: center; font-size: 11px; color: #9ca3af; margin-top: 8px; }
 
   /* Welcome */
@@ -243,6 +257,14 @@
   <div class="input-bar">
     <div class="input-row">
       <textarea id="userInput" rows="1" placeholder="Type a message…"></textarea>
+      <button id="micBtn" title="Speak your message" onclick="toggleMic()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2" width="6" height="11" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+          <line x1="8" y1="22" x2="16" y2="22"/>
+        </svg>
+      </button>
       <button id="sendBtn" onclick="sendMessage()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="22" y1="2" x2="11" y2="13"/>
@@ -676,6 +698,7 @@ function scrollBottom() {
 
 function setInput(enabled) {
   document.getElementById('sendBtn').disabled = !enabled;
+  document.getElementById('micBtn').disabled  = !enabled;
   if (enabled) document.getElementById('userInput').focus();
 }
 
@@ -686,6 +709,55 @@ function autoResize(el) {
 
 function sendChip(btn) {
   sendMessage(btn.textContent);
+}
+
+// ── Microphone (Web Speech API) ───────────────────────────────────────────
+let micRecognition = null;
+let micListening   = false;
+
+function toggleMic() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    addBubble('agent', "Speech recognition isn't supported in this browser. Try Chrome.");
+    return;
+  }
+  if (micListening) {
+    micRecognition?.stop();
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  micRecognition = new SR();
+  micRecognition.lang = 'en-US';
+  micRecognition.interimResults = true;
+  micRecognition.continuous = false;
+
+  micRecognition.onstart = () => {
+    micListening = true;
+    document.getElementById('micBtn').classList.add('listening');
+    document.getElementById('userInput').placeholder = 'Listening…';
+  };
+
+  micRecognition.onresult = (e) => {
+    const transcript = Array.from(e.results)
+      .map(r => r[0].transcript).join('');
+    const input = document.getElementById('userInput');
+    input.value = transcript;
+    autoResize(input);
+    // If final result, send automatically
+    if (e.results[e.results.length - 1].isFinal) {
+      micRecognition.stop();
+      setTimeout(() => sendMessage(), 300);
+    }
+  };
+
+  micRecognition.onerror = () => { micRecognition.stop(); };
+
+  micRecognition.onend = () => {
+    micListening = false;
+    document.getElementById('micBtn').classList.remove('listening');
+    document.getElementById('userInput').placeholder = 'Type a message…';
+  };
+
+  micRecognition.start();
 }
 
 // Enter to send (Shift+Enter = newline)
