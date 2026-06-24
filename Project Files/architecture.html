@@ -687,6 +687,8 @@ graph TD
   ROOT -->|"restore/plan change"| SAFn
   ROOT -->|"health complaint"| SADn
 
+  SABn ~~~ SAAn ~~~ SAFn ~~~ SADn
+
   classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
   classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
   classDef today      fill:#dcfce7,stroke:#16a34a,color:#1a1a2e,font-weight:600
