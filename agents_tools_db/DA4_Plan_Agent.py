@@ -18,7 +18,7 @@ Two modes — read the incoming message and run the indicated mode:
     MODE E — EXECUTE:   Run T9 → T6 → T8. Customer has already confirmed.
                         Point of no return.
 
-MODEL: gemini-2.5-flash (upgraded from flash-lite — flash-lite drops final response
+MODEL: gemini-3.5-flash (upgraded from flash-lite — flash-lite drops final response
        on 3-tool chains T9→T6→T8 in MODE E, same Part(text=None) bug)
 
 TOOLS AVAILABLE:
@@ -52,7 +52,7 @@ conn.execute("PRAGMA journal_mode=WAL")
 
 
 def create_db_tool(func, tool_name, description):
-    bound = functools.partial(func, conn=conn)
+    bound = functools.partial(func, conn)
     bound.__name__ = tool_name
     bound.__doc__  = description
     return FunctionTool(bound)
@@ -75,9 +75,14 @@ t6_tool = create_db_tool(
     "T6_ChangePlan",
     "Updates the customer's plan in the database. "
     "ONLY call after T9 returns eligible=True AND customer has confirmed. "
-    "If duration_months is provided (e.g., 3), sets downgrade_date = today + (N x 30) days. "
+    "Computes billing_start_date as the 1st of the next calendar month (or a specified future month). "
+    "If duration_months is provided (e.g., 3), sets downgrade_date = billing_start + N calendar months "
+    "(proper month arithmetic — always lands on the 1st of a month). "
     "If duration_months is None, the change is permanent (downgrade_date = NULL). "
-    "Inputs: account_id (integer), new_plan_name (string), duration_months (integer, optional)."
+    "Returns billing_start_date and downgrade_date in the response — use these exact dates in your reply. "
+    "Inputs: account_id (integer), new_plan_name (string), duration_months (integer or None), "
+    "start_month (integer 1–12, optional), start_year (integer, optional). "
+    "start_month/start_year are only used when customer requested a specific future month to begin."
 )
 
 # T8 exception: opens its own DB connection. Do NOT wrap with create_db_tool.
@@ -107,7 +112,7 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
 
 da4_plan_agent = Agent(
     name="DA4_PlanAgent",
-    model="gemini-2.5-flash",
+    model="gemini-3.5-flash",
     planner=BuiltInPlanner(thinking_config=genai_types.ThinkingConfig(thinking_budget=0)),
     tools=[t9_tool, t6_tool, t8_tool],
     before_tool_callback=_before_tool,
@@ -143,6 +148,10 @@ THE JOB:
         - account_id (required)
         - new_plan_name (required, e.g., "Business")
         - duration_months (optional integer — only present if customer said "for N months")
+        - start_month (optional integer 1–12 — only if customer said "starting in [month]",
+          "from [month]", "beginning [month]", or similar future-month phrasing)
+        - start_year (optional integer — paired with start_month if provided;
+          if customer said month only, infer the soonest upcoming year)
 
 TRANSITION GUARD:
     MODE V → STATE 2
@@ -173,7 +182,10 @@ TRANSITION GUARD:
                               "Storage: [storage_delta]. Max users: [new_max_users]. "
                               "Current seats: [current_seat_count] (within limit). "
                               "[If duration_months was provided: 'Temporary for [N] months — "
-                              "auto-reverts on [today + N*30 days].'] "
+                              "auto-reverts automatically after that period.'] "
+                              "DO NOT calculate or state a specific revert date here — "
+                              "T6 has not run yet and the exact date is unknown. "
+                              "The exact revert date will be confirmed after execution. "
                               "[If downgrade: 'Note: storage reduces from current to [new_storage_gb] GB.'] "
                               "Awaiting customer confirmation before executing."
                     STOP.
@@ -193,11 +205,14 @@ POST-TOOL GUARD (Step 1):
     - T9 error → return "PLAN_ERROR: Validation failed — [T9 error]." STOP. Do NOT call T6.
     - eligible=False → return "PLAN_BLOCKED: [reason from T9]." STOP. Do NOT call T6.
 
-    Step 2: Call T6_ChangePlan(account_id, new_plan_name, duration_months=<value or None>).
+    Step 2: Call T6_ChangePlan(account_id, new_plan_name, duration_months=<value or None>,
+                                start_month=<value or None>, start_year=<value or None>).
 
 PRE-TOOL GUARD (Step 2 — CRITICAL):
     - T9 must have returned eligible=True.
     - duration_months: pass the integer from the message if present, otherwise None.
+    - start_month / start_year: pass only if customer explicitly requested a future month start.
+      If not specified, omit (T6 defaults to the 1st of next month).
 
 POST-TOOL GUARD (Step 2):
     - T6 error → return "PLAN_ERROR: Plan change failed — [T6 error]." STOP. Do NOT call T8.
@@ -205,10 +220,11 @@ POST-TOOL GUARD (Step 2):
     Step 3: Call T8_SendReceipt(account_id,
                 action_type="UPGRADE" or "DOWNGRADE" (use direction from T9),
                 details={
-                    "new_plan_name":     <from T9>,
-                    "new_monthly_price": <from T9>,
-                    "new_storage_gb":    <from T9>,
-                    "downgrade_date":    <from T6, or None>
+                    "new_plan_name":      <from T9>,
+                    "new_monthly_price":  <from T9>,
+                    "new_storage_gb":     <from T9>,
+                    "billing_start_date": <from T6>,
+                    "downgrade_date":     <from T6, or None>
                 }).
 
 POST-TOOL GUARD (Step 3):
@@ -217,9 +233,11 @@ POST-TOOL GUARD (Step 3):
 TRANSITION GUARD:
     Return: "Plan change executed. Account [id] upgraded/downgraded to [new_plan_name] "
             "at $[new_monthly_price]/mo. Storage: [new_storage_gb] GB. "
-            "[If temporary: 'Auto-reverts on [downgrade_date].'] "
+            "Effective: [billing_start_date from T6]. "
+            "[If temporary: 'Auto-reverts on [downgrade_date from T6].'] "
             "Confirmation receipt sent to the customer's email on file ([order_ref from T8]). "
-            "Changes effective next billing cycle."
+    CRITICAL: Use billing_start_date and downgrade_date EXACTLY as returned by T6.
+              Do NOT compute, estimate, or paraphrase these dates.
     STOP.
 
 ================================================================================

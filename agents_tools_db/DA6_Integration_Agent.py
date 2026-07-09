@@ -80,7 +80,7 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
 
 da6_integration_agent = Agent(
     name="DA6_IntegrationAgent",
-    model="gemini-2.5-flash",
+    model="gemini-3.5-flash",
     planner=BuiltInPlanner(thinking_config=genai_types.ThinkingConfig(thinking_budget=0)),
     tools=[t12_tool],
     before_tool_callback=_before_tool,

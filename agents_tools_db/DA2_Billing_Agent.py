@@ -45,7 +45,7 @@ conn.execute("PRAGMA journal_mode=WAL")
 
 
 def create_db_tool(func, tool_name, description):
-    bound = functools.partial(func, conn=conn)
+    bound = functools.partial(func, conn)
     bound.__name__ = tool_name
     bound.__doc__  = description
     return FunctionTool(bound)
@@ -61,13 +61,16 @@ t7_tool = create_db_tool(
 t3_tool = create_db_tool(
     T3_ProcessPayment,
     "T3_ProcessPayment",
-    "Charges the customer's full pending balance. "
+    "Charges the customer's pending balance plus any applicable late fee in a single transaction. "
     "If new_card_last4 is provided (string, last 4 digits), updates card on file first "
     "and clears card_expired flag before charging. "
     "If new_card_last4 is omitted, charges the card already on file. "
-    "Returns amount_charged and card_last4_used. "
+    "If late_fee_amount is provided (float), it is added to the pending_balance for the total charge. "
+    "Pass late_fee_amount only when T4 returns waiver_granted=False. Pass None when waiver_granted=True. "
+    "Returns amount_charged (balance + late_fee) and card_last4_used. "
     "GUARDRAIL: Only call after explicit customer consent confirmed in the message. "
-    "Inputs: account_id (integer), new_card_last4 (string, optional)."
+    "Inputs: account_id (integer), new_card_last4 (string, optional), "
+    "late_fee_amount (float, optional)."
 )
 
 t4_tool = create_db_tool(
@@ -106,7 +109,7 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
 
 da2_billing_agent = Agent(
     name="DA2_BillingAgent",
-    model="gemini-2.5-flash",
+    model="gemini-3.5-flash",
     planner=BuiltInPlanner(thinking_config=genai_types.ThinkingConfig(thinking_budget=0)),
     tools=[t7_tool, t3_tool, t4_tool, t8_tool],
     before_tool_callback=_before_tool,
@@ -174,7 +177,7 @@ POST-TOOL GUARD (Step 2):
 
 TRANSITION GUARD:
     Return: "Balance check complete. Account [id] has a pending balance of $[amount].
-             [If waiver_granted=True:  'Fee waiver: your late fee has been waived — [T4 reason].']
+             [If waiver_granted=True:  'Fee waiver: your late fee has been waived [T4 reason].']
              [If waiver_granted=False: 'Fee waiver: a late fee of $[late_fee_amount] applies — [T4 reason].']"
     STOP.
 
@@ -204,20 +207,27 @@ POST-TOOL GUARD:
     - T4 error → note waiver unavailable, proceed to Step 3.
     - Fee result comes ONLY from T4. Never infer waiver from tenure or payment history.
 
-    Step 3 — Call T3_ProcessPayment(account_id, new_card_last4=<value or None>).
+    Step 3 — Call T3_ProcessPayment(account_id, new_card_last4=<value or None>,
+             late_fee_amount=<late_fee_amount if waiver_granted=False, else None>).
+    When waiver_granted=True:  call T3 with late_fee_amount=None (no late fee charged).
+    When waiver_granted=False: call T3 with late_fee_amount=[late_fee_amount from T4]
+                               (late fee is included in the total charge).
 
 PRE-TOOL GUARD:
     - new_card_last4 must be a 4-digit string if provided, or None.
+    - late_fee_amount must be a float if provided, or None.
     - Do NOT fabricate a card number. Only pass what is explicitly stated.
 
 POST-TOOL GUARD:
     - T3 error → return "BILLING_ERROR: Payment failed — [reason from T3]." STOP.
+    - amount_charged from T3 is the TOTAL charged (balance + late_fee if applicable).
 
 TRANSITION GUARD:
     Return: "Payment processed. $[amount_charged] charged to card ending in [card_last4_used].
              Balance cleared.
-             [If waiver_granted=True:  'Your late fee has been waived — [T4 reason].']
-             [If waiver_granted=False: 'A late fee of $[late_fee_amount] applies — [T4 reason].']"
+             [If waiver_granted=True:  'Your late fee has been waived [T4 reason].']
+             [If waiver_granted=False: 'A late fee of $[late_fee_amount] was included in
+              the total charge — [T4 reason].']"
     STOP.
 
 ================================================================================
@@ -290,7 +300,7 @@ POST-TOOL GUARD:
     - Fee result comes ONLY from T4 output. Never infer waiver from tenure or payment history.
 
 TRANSITION GUARD:
-    waiver_granted=True  → Return exactly: "Your late fee has been waived — [reason from T4]."
+    waiver_granted=True  → Return exactly: "Your late fee has been waived [reason from T4]."
     waiver_granted=False → Return exactly: "A late fee of $[late_fee_amount] applies — [reason from T4]."
     STOP. Do not add any other text.
 

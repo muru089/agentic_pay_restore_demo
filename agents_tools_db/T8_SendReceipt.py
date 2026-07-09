@@ -29,8 +29,7 @@ OUTPUT:
 """
 
 import os
-import random
-import string
+import uuid
 import sqlite3
 
 
@@ -70,8 +69,7 @@ def T8_SendReceipt(account_id, action_type, details=None):
     finally:
         conn.close()
 
-    suffix    = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
-    order_ref = f"#ORD-{suffix}"
+    order_ref = f"#ORD-{uuid.uuid4().hex[:6].upper()}"
 
     if not details:
         details = {}
@@ -85,12 +83,16 @@ def T8_SendReceipt(account_id, action_type, details=None):
         project_count = details.get("project_count", "N/A")
         plan_name     = details.get("plan_name", "")
         amount_paid   = details.get("amount_paid", 0.00)
+        data_at_risk  = details.get("data_at_risk", False)
 
         lines.append("Action          : Account Restored")
         lines.append(f"Account Status  : ACTIVE")
         lines.append(f"Plan            : {plan_name}")
         lines.append(f"Amount Paid     : ${amount_paid:.2f}")
-        lines.append(f"Projects        : {project_count} projects confirmed intact")
+        if data_at_risk:
+            lines.append("Projects        : Data retention review recommended — check your dashboard")
+        else:
+            lines.append(f"Projects        : {project_count} projects confirmed intact")
         lines.append("-" * 40)
         lines.append("Your account is fully restored. Welcome back!")
 

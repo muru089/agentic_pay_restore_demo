@@ -16,7 +16,7 @@ PREREQUISITE GATE:
       2. Account is currently SUSPENDED
     If either is missing from the handoff, DA3 returns RESTORE_ERROR immediately.
 
-MODEL: gemini-2.5-flash (NOT flash-lite — multi-tool chains risk Part(text=None) bug)
+MODEL: gemini-3.5-flash (NOT flash-lite — multi-tool chains risk Part(text=None) bug)
 
 TOOLS AVAILABLE:
     T5_RestoreAccount  -- Sets status=ACTIVE, clears suspension_date. Point of no return.
@@ -47,7 +47,7 @@ conn.execute("PRAGMA journal_mode=WAL")
 
 
 def create_db_tool(func, tool_name, description):
-    bound = functools.partial(func, conn=conn)
+    bound = functools.partial(func, conn)
     bound.__name__ = tool_name
     bound.__doc__  = description
     return FunctionTool(bound)
@@ -89,7 +89,7 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
 
 da3_restore_agent = Agent(
     name="DA3_RestoreAgent",
-    model="gemini-2.5-flash",
+    model="gemini-3.5-flash",
     planner=BuiltInPlanner(thinking_config=genai_types.ThinkingConfig(thinking_budget=0)),
     tools=[t5_tool, t8_tool],
     before_tool_callback=_before_tool,
@@ -121,7 +121,10 @@ THE JOB:
         - project_count (integer — from context, e.g., "12 projects")
         - plan_name (string — e.g., "Team")
         - amount_paid (float — amount charged in payment step, e.g., 49.00)
-        - data_at_risk (boolean — True if message contains "DATA_AT_RISK=True", else False)
+        - data_at_risk (boolean — True if message contains any of: "DATA_AT_RISK=True",
+          "DATA_AT_RISK=true", "DATA_AT_RISK: True", "data_at_risk=True", or the words
+          "AT RISK" appear in a data context. When in doubt, treat as True — it is safer
+          to omit the "confirmed intact" claim than to make it incorrectly. Default False.)
     These values populate the T8 receipt. Use 0 / "Unknown" as fallback if not provided.
 
 TRANSITION GUARD:
@@ -157,7 +160,8 @@ THE JOB:
     Call T8_SendReceipt(account_id, action_type="RESTORE", details={
         "project_count": <project_count from STATE 1>,
         "plan_name":     <plan_name from STATE 1>,
-        "amount_paid":   <amount_paid from STATE 1>
+        "amount_paid":   <amount_paid from STATE 1>,
+        "data_at_risk":  <data_at_risk from STATE 1 — True or False>
     }).
 
 PRE-TOOL GUARD:

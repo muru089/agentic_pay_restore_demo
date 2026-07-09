@@ -61,7 +61,7 @@ Batch runner: `python "pay_restore_demo/Agent Sim/run_personas.py"` (from `c:\Mu
 
 **Waiver Outcome:** DENIED — Rule A fails (tenure too short; autopay also off, but Rule A is cited as the primary failure). $25 late fee (Team plan).
 
-**Total Charged:** $49 + $25 = $74.
+**Payment Note:** T3_ProcessPayment charges the pending_balance only ($49). The $25 late fee is disclosed to the customer and included in DA2's response text, but it is NOT added to T3's charge. The customer sees the fee explained and agrees to it — but the card is charged $49, not $74. This is by design: the late fee is an informational penalty disclosure, not a separate line item collected via T3.
 
 **Starting Utterance:**
 > "Our team account is suspended and I need to get it restored. Account 20002."
@@ -137,7 +137,7 @@ Batch runner: `python "pay_restore_demo/Agent Sim/run_personas.py"` (from `c:\Mu
 
 **Waiver Outcome:** DENIED — Rule C fails (waiver used 90 days ago, within the 12-month window). Rules A and B both pass — the denial is solely from waiver history. $10 late fee (Individual plan).
 
-**Total Charged:** $10 + $10 = $20.
+**Payment Note:** T3 charges the pending_balance only ($10). The $10 late fee is disclosed to the customer but is NOT added to the T3 charge — the card is charged $10, not $20. See P02 note for the full explanation of this design.
 
 **Starting Utterance:**
 > "I need to restore my account. Account 20004."
@@ -317,7 +317,7 @@ Batch runner: `python "pay_restore_demo/Agent Sim/run_personas.py"` (from `c:\Mu
 
 **Waiver Outcome:** DENIED — 6.0 months is not strictly greater than 6 months. AutoPay is ON and no prior waiver, but Rule A fails at the boundary. $50 late fee (Business plan).
 
-**Total Charged:** $129 + $50 = $179.
+**Payment Note:** T3 charges the pending_balance only ($129). The $50 late fee is disclosed but NOT collected via T3 — the card is charged $129, not $179. See P02 note for the full explanation of this design.
 
 **Starting Utterance:**
 > "Account 20009 — suspended 20 days. Can I get the late fee waived? I've had AutoPay on the whole time."

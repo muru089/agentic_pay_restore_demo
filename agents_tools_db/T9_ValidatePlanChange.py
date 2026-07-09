@@ -82,6 +82,12 @@ def T9_ValidatePlanChange(conn, account_id, new_plan_name):
 
         new_price, new_max_users, new_storage = new_row
 
+        if new_plan_name == current_plan_name:
+            return {
+                "status":  "error",
+                "message": f"Customer is already on the {current_plan_name} plan. No change needed.",
+            }
+
         direction = "upgrade" if new_price > current_price else "downgrade"
 
         seat_count_ok = seat_count <= new_max_users

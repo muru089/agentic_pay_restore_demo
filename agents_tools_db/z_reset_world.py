@@ -112,6 +112,16 @@ def reset_world():
     cursor.execute("""
         CREATE TABLE session_state (
             account_id              INTEGER PRIMARY KEY,
+            -- T1 cache: account identity fields written once on first turn
+            t1_cached               INTEGER DEFAULT 0,
+            first_name              TEXT,
+            company_name            TEXT,
+            plan_name               TEXT,
+            tenure_months           REAL,
+            card_last4              TEXT,
+            card_expired            INTEGER,
+            pending_balance         REAL,
+            -- restore flow state
             data_checked            INTEGER DEFAULT 0,
             data_safe               INTEGER DEFAULT 1,
             days_suspended          INTEGER DEFAULT 0,

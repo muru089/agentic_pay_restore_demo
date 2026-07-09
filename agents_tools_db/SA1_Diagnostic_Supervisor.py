@@ -1,4 +1,4 @@
-"""
+﻿"""
 SA1_Diagnostic_Supervisor.py  --  sa1_diagnostic_supervisor
 ============================================================
 
@@ -23,7 +23,7 @@ URGENCY RANKING (synthesis):
     HEALTHY: all three domains report no issues
 
 MODEL NOTE:
-    Must use gemini-2.5-flash (NOT flash-lite). Flash-lite silently drops
+    Must use gemini-3.5-flash (NOT flash-lite). Flash-lite silently drops
     AgentTool responses when called in parallel (Part(text=None) bug).
     All three domain agents are called in parallel from a single SA1 turn.
 """
@@ -70,7 +70,7 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
 
 sa1_diagnostic_supervisor = Agent(
     name="SA1_DiagnosticSupervisor",
-    model="gemini-2.5-flash",
+    model="gemini-3.5-flash",
     planner=BuiltInPlanner(thinking_config=genai_types.ThinkingConfig(thinking_budget=0)),
     tools=[
         AgentTool(da1_account_agent),

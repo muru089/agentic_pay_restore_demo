@@ -3,6 +3,8 @@
 
 # Generated database — reset with z_reset_world.py
 *.db
+*.db-shm
+*.db-wal
 
 # Python cache
 __pycache__/

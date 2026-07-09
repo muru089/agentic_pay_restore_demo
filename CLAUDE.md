@@ -71,7 +71,7 @@ CREATE TABLE customer_accounts (
 
 ---
 
-## 4. Demo Accounts (10 active/suspended + 3 canceled)
+## 4. Demo Accounts (15 total — Groups A–D)
 
 ### Group A — Active / Suspended (20001–20010)
 
@@ -124,6 +124,32 @@ CREATE TABLE customer_accounts (
 |----|----------------|------------|-----------------|-------------------|---------------|-----------|
 | 20011 | NULL | — | NULL | 0 | N/A | Churned — win-back demo |
 
+### Group C — Diagnostic Accounts (20012–20013)
+
+Added in Phase 5 to demonstrate SA1_DiagnosticSupervisor and single-intent bypass.
+
+| ID | Name | Company | Plan | Tenure | Autopay | Balance | Status | Seats | Projects | Storage | Integration |
+|----|------|---------|------|--------|---------|---------|--------|-------|----------|---------|-------------|
+| 20012 | Taylor | Brightline | Team | 11.0 | ON | $0 | ACTIVE | 8 | 18 | 95/100 GB (near limit) | Slack — healthy |
+| 20013 | Blake | Nexus Digital | Business | 16.0 | ON | $0 | ACTIVE | 15 | 22 | 45/500 GB (9%) | GitHub — auth_failure (5x) |
+
+- **20012 Taylor**: Storage near limit triggers SA1 → DA5 storage culprit finding. Upgrade path demo.
+- **20013 Blake**: GitHub auth failure triggers SA1 → DA6 integration culprit finding. Reconnect guidance demo.
+- Both accounts have no suspension, no balance, no waiver history — purely diagnostic demo accounts.
+
+### Group D — Manual Payer Accounts (20014–20015)
+
+Added in Phase 5 to demonstrate active-account billing path (DA2 payment on ACTIVE account, no restore).
+
+| ID | Name | Company | Plan | Tenure | Autopay | Balance | Status | Seats | Projects | Storage | Integration |
+|----|------|---------|------|--------|---------|---------|--------|-------|----------|---------|-------------|
+| 20014 | Priya | Clearpath | Business | 20.0 | OFF | $0 | ACTIVE | 12 | 20 | 220/500 GB (44%) | Jira — healthy |
+| 20015 | Dana | Ironforge | Team | 14.0 | OFF | $49 | ACTIVE | 6 | 15 | 60/100 GB (60%) | GitHub — healthy |
+
+- **20014 Priya**: ACTIVE with $0 balance (just paid manually). Good account for SA1 all-healthy synthesis.
+- **20015 Dana**: ACTIVE with $49 outstanding invoice (autopay OFF). Demonstrates billing on an ACTIVE account — T3 charges pending_balance with no T4 fee waiver and no DA3 restore.
+- Both cards are valid (not expired). No suspension history. No waiver history.
+
 ---
 
 ## 5. Agent Architecture (3-tier — mirrors metro_city)
@@ -140,6 +166,7 @@ root_agent              (agent.py)                   gemini-2.5-flash      ← U
   +-- T0_SetSessionState   (direct tool: persistent state write)
   +-- T1_GetAccount        (direct tool: auth)
   +-- T10_SearchKnowledge  (direct tool: RAG retrieval)
+  +-- T13_UpdateAutoPay    (direct tool: AutoPay management)
   +-- DA1_AccountAgent     (DA1_Account_Agent.py)    gemini-2.5-flash      ← Domain
   +-- DA2_BillingAgent     (DA2_Billing_Agent.py)    gemini-2.5-flash      ← Domain
   +-- DA3_RestoreAgent     (DA3_Restore_Agent.py)    gemini-2.5-flash      ← Squad
@@ -169,7 +196,7 @@ root_agent              (agent.py)                   gemini-2.5-flash      ← U
 
 | Tier | Agent | Model | Responsibility |
 |---|---|---|---|
-| Uber | root_agent | gemini-2.5-flash | Auth, input safety, routing. Owns restore flow sequencing via ROW 1–7 dispatch table + T0 persistent state. |
+| Uber | root_agent | gemini-2.5-flash | Auth, input safety, routing. Owns restore flow sequencing via ROW 1–7 dispatch table + T0 persistent state. 12 tools: T0g, T0s, T1, T10, T13, DA1–DA6, SA1. |
 | Supervisor | SA1_DiagnosticSupervisor | gemini-2.5-flash | Parallel fan-out: DA1 + DA5 + DA6 in same turn. Synthesises urgency rating (HIGH/MEDIUM/HEALTHY). |
 | Domain | DA1_AccountAgent | gemini-2.5-flash | Account status, data retention check (T2) |
 | Domain | DA2_BillingAgent | gemini-2.5-flash | Payment (T3), balance (T7), fee waiver (T4) |
@@ -180,7 +207,7 @@ root_agent              (agent.py)                   gemini-2.5-flash      ← U
 
 ---
 
-## 6. Tool Reference (T0–T12)
+## 6. Tool Reference (T0–T13)
 
 | Tool | File | Signature | Purpose |
 |------|------|-----------|---------|
@@ -198,8 +225,9 @@ root_agent              (agent.py)                   gemini-2.5-flash      ← U
 | T10 | T10_SearchKnowledge.py | (query) | RAG retrieval. Embeds query → cosine search → returns top-3 chunks from ChromaDB with source labels. Returns [LOW_CONFIDENCE] if best distance > 0.75. |
 | T11 | T11_CheckStorage.py | (conn, account_id) | Returns storage_used_gb, plan_storage_gb, storage_pct. Used by DA5_StorageAgent and SA1_DiagnosticSupervisor. |
 | T12 | T12_CheckIntegration.py | (conn, account_id) | Returns integration_name, integration_status, last_sync, auth_failures, action_required. Used by DA6_IntegrationAgent and SA1_DiagnosticSupervisor. |
+| T13 | T13_UpdateAutoPay.py | (conn, account_id, enabled) | Enable (1) or disable (0) AutoPay. Non-destructive — no payment processed. No consent gate required. Returns updated autopay_active status. Called directly by root_agent. |
 
-**DB injection:** functools.partial(fn, conn) on T1–T7, T9, T11, T12. T0 and T8 open their own connections — never wrap with create_db_tool.
+**DB injection:** functools.partial(fn, conn) on T1–T7, T9, T11, T12, T13. T0 and T8 open their own connections — never wrap with create_db_tool.
 
 ---
 
@@ -215,13 +243,13 @@ T4 looks up the customer's plan in plan_catalog to return the correct late fee a
 Waiver result: either $0 (all rules pass) or the plan's late_fee value + reason for failure.
 
 **T4 reason string format (customer-facing, not internal):**
-- PASS: `"you've been with us for N months, had AutoPay enabled, and haven't used a waiver in the past 12 months"`
+- PASS: `"as you have been with us for N months, had AutoPay enabled, and haven't used a waiver in the past 12 months"`
 - FAIL Rule A: `"your account is N months old, which does not meet the 6-month minimum"`
 - FAIL Rule B: `"AutoPay was not enabled on your account"`
 - FAIL Rule C: `"a waiver was applied N days ago, within the 12-month window"`
 
 DA2 wraps the T4 reason into a complete customer-ready sentence and returns only that sentence:
-- PASS:  `"Your late fee has been waived — [T4 reason]."`
+- PASS:  `"Your late fee has been waived [T4 reason]."` (no em-dash — T4 reason starts with "as")
 - FAIL:  `"A late fee of $X applies — [T4 reason]."`
 
 SA1 relays DA2's sentence verbatim. root_agent (Layer 3) enriches if the reason is missing.
@@ -449,11 +477,11 @@ TRANSITION GUARD → what to return, what to wait for, HARD STOP if applicable
 **Fee waiver relay chain (full path to customer):**
 1. T4 returns `reason` as a customer-friendly string (e.g., "you've been with us for 9 months...")
 2. DA2 wraps it: returns ONLY `"Your late fee has been waived — [reason]."` or `"A late fee of $X applies — [reason]."`
-3. SA1 includes DA2's exact sentence in its SIGNAL D Step 5 restore confirmation — does not paraphrase.
-4. root_agent Layer 3: if the reason clause (after em dash) is missing, enriches from SA1 response text.
+3. root_agent ROW 6 calls DA2 and includes DA2's exact sentence in the restore confirmation — does not paraphrase.
+4. root_agent Layer 3: if the reason clause (after em dash) is missing, enriches from DA2 response text.
 
 This chain was engineered after multiple instruction-only attempts failed — the reliable fix was
-pushing the customer-ready sentence all the way down to T4/DA2 so SA1 just relays rather than composes.
+pushing the customer-ready sentence all the way down to T4/DA2 so root_agent just relays rather than composes.
 
 ### DA3_RestoreAgent (Squad Pattern — lean)
 - Fire-and-return. Executes T5 (restore) → T8 (receipt) only. No plan change logic.
@@ -479,6 +507,15 @@ data_safe=False. DA3 STATE 1 extracts this flag. TRANSITION GUARD branches on it
 - Uses gemini-2.5-flash (upgraded from flash-lite — flash-lite drops the final response on
   3-tool MODE E chains T9→T6→T8, same Part(text=None) bug as DA1/DA2).
 
+### T13_UpdateAutoPay (root_agent direct tool)
+- Called directly by root_agent (not via any DA) when the customer explicitly requests an AutoPay change.
+- Non-destructive — no payment processed. No consent gate required.
+- Trigger phrases: "enable AutoPay", "turn on AutoPay", "disable AutoPay", "remove AutoPay", "AutoPay on/off".
+- Business rule: enabling AutoPay on a SUSPENDED account BEFORE paying lets T4 re-evaluate Rule B at
+  payment time — potentially granting a waiver to a customer who previously failed only on Rule B.
+- root_agent discloses this consequence to the customer before calling T13 on a suspended account.
+- Injected via `functools.partial(T13_UpdateAutoPay, conn)` — same pattern as T1–T7, T9, T11, T12.
+
 ### DB Tool Injection (functools.partial)
 ```python
 def create_db_tool(fn, conn):
@@ -487,14 +524,14 @@ def create_db_tool(fn, conn):
     bound.__doc__  = fn.__doc__
     return FunctionTool(bound)
 ```
-- T8_SendReceipt exception: opens its own `sqlite3.connect("orbit.db")` internally.
+- T8_SendReceipt exception: opens its own `sqlite3.connect(...)` to `agents_tools_db/orbit.db` internally.
   Never wrap with create_db_tool.
 
 ### SA1 Callbacks (terminal trace — same pattern added in metro_city)
-- Add `before_tool_callback` and `after_tool_callback` to SA1_RestoreSupervisor.
-- Prints `SA1 → DA1`, `SA1 ← DA1 RSP:...`, `SA1 → DA2`, `SA1 ← DA2 RSP:...`,
-  `SA1 → DA3`, `SA1 ← DA3 RSP:...`, `SA1 → DA4`, `SA1 ← DA4 RSP:...` to terminal.
-- Surfaces the yield-and-resume coordination visually during demo.
+- `before_tool_callback` and `after_tool_callback` on SA1_DiagnosticSupervisor.
+- Prints `SA1 → DA1`, `SA1 ← DA1 RSP:...`, `SA1 → DA5`, `SA1 ← DA5 RSP:...`,
+  `SA1 → DA6`, `SA1 ← DA6 RSP:...` to terminal.
+- Surfaces the parallel fan-out and yield-and-resume coordination visually during demo.
 
 ### Tone & Persona (root_agent)
 root_agent has a TONE AND PERSONA section before LAYER 1 that shapes all customer-facing responses:
@@ -535,7 +572,7 @@ Never say "sent to you" or give the email address — it may not be current.
 | Source | Destination | Changes |
 |---|---|---|
 | `z_reset_world.py` | `z_reset_world.py` | New tables (plan_catalog, customer_accounts), new personas, orbit.db. All suspension_dates computed dynamically as `today - N days` using `datetime.date.today()` — never hardcoded. |
-| `Agent Sim/test_conversation.py` | `Agent Sim/test_conversation.py` | New TURNS, new account IDs, orbit.db verification |
+| `Agent Sim/test_conversation.py` | `test_cases/test_conversation.py` | New TURNS, new account IDs, agents_tools_db/orbit.db verification |
 | `__init__.py` | `__init__.py` | Update docstring (pay_restore world, new agent names) |
 | `T5a_GetBalance.py` | `T7_GetBalance.py` | Rename, update docstring only |
 | `T8_CheckFeeWaiver.py` | `T4_CheckFeeWaiver.py` | Change rules: tenure > 6mo (not 3yr), same 3-rule structure |
@@ -588,11 +625,13 @@ Then start a **new Claude thread** (see prompt below)
 19. DA2_Billing_Agent.py (T3, T4, T7)
 20. DA3_Restore_Agent.py — Squad lean (T5, T8)
 21. DA4_Plan_Agent.py — Squad + Shared (T9, T6, T8)
-22. SA1_Restore_Supervisor.py — 7-state machine, Approach B, no direct tools
-23. agent.py — Uber: T1 direct + DA1/DA2/DA4/SA1 as AgentTools
+22. DA5_Storage_Agent.py — Domain (T11)
+23. DA6_Integration_Agent.py — Domain (T12)
+24. SA1_Diagnostic_Supervisor.py — Supervisor, parallel fan-out DA1/DA5/DA6
+25. agent.py — Uber: T0/T1/T10/T13 direct + DA1–DA6/SA1 as AgentTools, ROW 1–7 dispatch, Approach C state
 
 ### Phase 4 — New Claude thread: Validate
-24. Write `Agent Sim/test_conversation.py`
+24. Write `test_cases/test_conversation.py`
 25. Run Persona 1 (Alex 20001) — primary demo, happy path
 26. Run Persona 2 (Jordan 20002) — waiver FAIL Rule A
 27. Run Persona 3 (Sam 20003) — data AT RISK
@@ -652,18 +691,19 @@ New project folder: c:\Muru_Workspace\pay_restore_demo (folder already created, 
 CLAUDE.md is at: c:\Muru_Workspace\pay_restore_demo\CLAUDE.md
 
 Ground rules:
-- Follow the same 3-tier architecture, tool injection pattern, and Approach B state reconstruction as metro_city.
-- Use gemini-2.5-flash for root_agent, SA1_RestoreSupervisor, DA1_AccountAgent, DA2_BillingAgent, DA3_RestoreAgent.
-- Use gemini-2.5-flash-lite for DA4_PlanAgent only.
-- DO NOT use gemini-2.0-flash or gemini-2.5-flash-lite for DA1/DA2 — flash-lite drops AgentTool responses
-  when called in parallel from SA1 (Part(text=None) bug).
+- Follow the same 3-tier architecture and tool injection pattern as metro_city.
+- Use gemini-2.5-flash for ALL agents (root_agent, DA1–DA6, SA1_DiagnosticSupervisor).
+  DO NOT use gemini-2.0-flash or gemini-2.5-flash-lite anywhere — flash-lite drops AgentTool
+  responses when called in parallel (Part(text=None) bug).
+- Persistent state via SQLite session_state table (Approach C) — NOT Approach B transcript scanning.
+  root_agent owns the restore flow via ROW 1–7 dispatch table + T0_GetSessionState / T0_SetSessionState.
 - Run all commands from c:\Muru_Workspace (parent directory), not from inside pay_restore_demo.
-- DB file is orbit.db (not metro_city.db).
+- DB file is agents_tools_db/orbit.db (not metro_city.db).
 
 Start with Phase 1:
 1. Read CLAUDE.md fully.
 2. Write __init__.py.
-3. Write z_reset_world.py (2 tables: plan_catalog + customer_accounts, 4 plans, 13 accounts).
+3. Write z_reset_world.py (2 tables: plan_catalog + customer_accounts, 4 plans, 15 accounts across Groups A–D).
 4. Run it and show me the output.
 ```
 
@@ -756,10 +796,13 @@ Three-layer check in series:
 - `data_retention.html` — 30-day retention window, visual timeline, export instructions
 - `upgrades_downgrades.html` — Seat checks, upgrade/downgrade, temporary upgrades, effective date
 - `cancellation.html` — Export first, how to cancel, 30-day post-cancel retention, win-back
+- `diagnostics_integrations.html` — SA1 diagnostic flow, storage thresholds, integration auth errors
+- `team_administration.html` — Seat management, user roles, seat count limits per plan
 
-**Indexing (rag_seed.py):**
-- Reads 6 HTML pages → BeautifulSoup strips tags → sliding window chunker (2000 chars, 200 overlap)
-- Produces ~17 chunks → embeds via gemini-embedding-2 → stored in ChromaDB
+**Indexing (`Project Files/rag_seed.py`):**
+- Reads 8 HTML pages → BeautifulSoup strips tags → sliding window chunker (2000 chars, 200 overlap)
+- index.html is excluded (navigation only — no policy content)
+- Produces ~23 chunks → embeds via gemini-embedding-2 → stored in ChromaDB
 - Full re-index on every run (drop + rebuild). In production: nightly scheduled job.
 - `PAGES` list excludes `index.html` (navigation only, no content).
 
@@ -775,17 +818,34 @@ Three-layer check in series:
 
 ---
 
-### 15c. Polished Chat UI (orbit_chat.html)
+### 15c. Polished Chat UI (orbit_chat.html) + Demo Server (serve_demo.py)
 
-**File:** `orbit_chat.html` (project root — open directly in browser)
-**Connects to:** ADK backend (`http://127.0.0.1:8000`) — same API endpoints as `adk web`
-**Brand:** Orbit (`#5b4cf5` purple, clean typography)
+**Files:**
+- `orbit_chat.html` (project root) — the polished demo chat UI
+- `serve_demo.py` (project root) — single-port FastAPI server that wraps ADK + custom routes
 
-**Key features:**
+**Running the demo:**
+```powershell
+# From c:\Muru_Workspace:
+python pay_restore_demo/serve_demo.py
+# Opens: http://127.0.0.1:8000/orbit_chat.html
+```
+serve_demo.py auto-resets the DB to Day 1 on every startup and kills any existing process on port 8000 before binding.
+
+**serve_demo.py features:**
+- Port kill: `netstat -ano` + `taskkill /F /PID` frees port 8000 before binding (Windows)
+- DB auto-reset: `z_reset_world.py` runs via `runpy` on startup — fresh state every launch
+- `POST /reset-db` endpoint: resets DB mid-demo without restarting the server
+- Serves `orbit_chat.html` at `/orbit_chat.html`, `architecture.html` at `/architecture.html`
+- Mounts `knowledge_base/html/` at `/knowledge_base/html/` for Help Center pages
+- ADK dev UI still available at `/dev-ui` for tool call trace visibility
+
+**orbit_chat.html key features:**
 - SSE streaming via `fetch('/run_sse')` + `ReadableStream` — response streams word-by-word
 - Session init: `POST /apps/pay_restore_demo/users/{userId}/sessions`
 - Typing indicator (3 bouncing dots) while agent is responding
 - Welcome screen with suggestion chips
+- **Reset Demo button** (nav bar) — calls `POST /reset-db`, waits 400ms, reloads page for clean slate
 - `__CARD_FORM__` trigger: agent sends this token → chat page renders inline secure card form (no redirect)
   - Masked card number input (`**** **** **** XXXX`)
   - Client-side Luhn validation (16 digits, mod-10), expiry (MM/YY > today), CVV (3 digits)
@@ -794,7 +854,7 @@ Three-layer check in series:
 
 **Help Center link:** `knowledge_base/html/index.html` nav has "✦ Ask Orbit AI" button linking to `orbit_chat.html`.
 
-**Demo mode:** Use `orbit_chat.html` for polished demo. Use `adk web` (http://127.0.0.1:8000) for "behind the scenes" architecture view if interviewer wants to see tool call traces.
+**Demo mode:** Use `serve_demo.py` → `orbit_chat.html` for polished demo. Use `adk web` (http://127.0.0.1:8000) for "behind the scenes" architecture view if interviewer wants to see tool call traces.
 
 ---
 
@@ -813,8 +873,8 @@ Events captured:
 | Azure Prompt Shield errors/blocks | safety_guard.py | rule, preview of message |
 | Azure Text Analyze errors/blocks | safety_guard.py | category, severity |
 | T1 SSN block | safety_guard.py | rule=T1/SSN, preview |
-| SA1 empty DA response | SA1_Restore_Supervisor.py | agent name — Part(text=None) bug detection |
-| All DA calls/responses | SA1_Restore_Supervisor.py | DEBUG level |
+| SA1 empty DA response | SA1_Diagnostic_Supervisor.py | agent name — Part(text=None) bug detection |
+| All DA calls/responses | SA1_Diagnostic_Supervisor.py | DEBUG level |
 
 Console output: WARNING and above only (does not flood terminal). File gets DEBUG and above.
 
@@ -824,36 +884,57 @@ Previously all of this was print-only (lost in `adk web`) or completely silent (
 
 ### 15e. Simulation Test Suite
 
-**Files:**
-- `Agent Sim/simulation_scenarios.md` — 25 primary scenarios in 8 groups with turn scripts and expected outcomes
-- `Agent Sim/secondary_scenarios.md` — 110 edge case scenarios across 17 categories
-- `Agent Sim/run_all_scenarios.py` — automated batch runner (DB reset per scenario, PASS/FAIL/SKIP table)
-- `Agent Sim/run_targeted.py` — targeted runner for specific scenarios only
-- `Agent Sim/test_conversation.py` — original single-persona runner (interactive, DB verification)
+**Scenario design docs (Agent Sim/ — documentation only, not runners):**
+- `Agent Sim/01_primary_scenarios.md` — 13 primary personas (P01–P13) with turn scripts, tool chains, and expected outcomes. Accounts 20001–20013.
+- `Agent Sim/02_secondary_scenarios.md` — 130 edge case and supplementary scenarios across all flows (Parts A, B, C).
 
-**Scenario groups (simulation_scenarios.md):**
-1. Primary restore flows (S01–S02)
-2. Waiver FAIL paths (S03–S06)
-3. Data AT RISK (S07a–S07b)
-4. Active account flows (S08–S10)
-5. Canceled account / win-back (S11)
-6. RAG knowledge questions (S12–S17)
-7. Safety pre-flight (S18–S20)
-8. Edge cases and guardrails (S21–S25)
+**Test runner files (test_cases/ — all use LLM-as-judge via gemini-2.5-pro):**
 
-**Batch runner usage:**
+| File | Purpose |
+|------|---------|
+| `test_cases/judge_utils.py` | Shared utilities: `reset_db()`, `apply_db_mod()`, `run_scenario()`, `llm_judge()` |
+| `test_cases/run_group1_auth.py` | Group 1: Auth + account lookup (G1-S01–S06) |
+| `test_cases/run_group2_balance.py` | Group 2: Balance + payment flows (G2-S07–S12) |
+| `test_cases/run_group3_cards.py` | Group 3: Card expiry + new card collection (G3-S13–S20) |
+| `test_cases/run_group4_waiver.py` | Group 4: Fee waiver — all 3 rules (G4-S21–S28) |
+| `test_cases/run_group5_retention.py` | Group 5: Data retention — edge cases (G5-S29–S35) |
+| `test_cases/run_group6_rag.py` | Group 6: RAG knowledge retrieval + LOW_CONFIDENCE fallback |
+| `test_cases/run_group7_safety.py` | Group 7: Safety pre-flight — SSN, injection, toxicity |
+| `test_cases/run_group8_edge.py` | Group 8: Edge cases + guardrails |
+| `test_cases/run_group9_diagnostic.py` | Group 9: SA1 DiagnosticSupervisor + single-intent bypass (SD01–SD04) |
+| `test_cases/run_group10_plan_changes.py` | Group 10: Active account plan changes |
+| `test_cases/run_group11_auth_account.py` | Group 11: Auth + account-state flows |
+| `test_cases/run_group12_restore_plan.py` | Group 12: Restore + plan upgrade in same session |
+| `test_cases/run_group13_conversation.py` | Group 13: Multi-turn conversation dynamics |
+| `test_cases/run_group14_tone.py` | Group 14: Tone + persona guardrails |
+| `test_cases/run_group15_sa1_extended.py` | Group 15: SA1 extended scenarios |
+| `test_cases/run_group16_safety_ext.py` | Group 16: Extended safety scenarios |
+| `test_cases/run_group17_escalation_state.py` | Group 17: Escalation + session state edge cases |
+| `test_cases/run_group18_rag_routing.py` | Group 18: RAG routing + T10 edge cases |
+| `test_cases/run_groups_12_to_18.py` | Master runner: launches Groups 12–18 as subprocesses, combined scoreboard |
+| `test_cases/run_all_personas.py` | Runs all 13 primary personas sequentially, prints full transcripts |
+| `test_cases/run_personas.py` | Runs all persona scripts sequentially with PASS/FAIL summary |
+| `test_cases/test_conversation.py` | Interactive single-persona runner (select persona by uncommenting) |
+
+**Judge criteria (judge_utils.py — `_JUDGE_SYSTEM` prompt):**
+- PASS: Task accomplished, business rules correct, customer trust protected.
+- FAIL: Task failed, rule applied incorrectly, required gate bypassed, factually wrong information.
+- NEVER fail for phrasing variations, minor omissions, or verbosity — only outcome quality.
+- Over-answering check applied selectively for narrow-intent scenarios only.
+
+**Running group scenarios:**
 ```powershell
 # From c:\Muru_Workspace:
-python "pay_restore_demo/Agent Sim/run_all_scenarios.py"  # all 26 entries (~50 min)
-python "pay_restore_demo/Agent Sim/run_targeted.py"       # 5 specific scenarios (~10 min)
+python "pay_restore_demo/test_cases/run_group9_diagnostic.py"   # Group 9 only (~3 min)
+python "pay_restore_demo/test_cases/run_groups_12_to_18.py"     # Groups 12–18 combined
+python "pay_restore_demo/test_cases/run_all_personas.py"        # All 13 personas (transcripts)
 ```
-Output written to `Agent Sim/batch_run_output.txt` and `Agent Sim/batch_run_errors.txt`.
 
 ---
 
 ### 15f. Architecture Diagrams
 
-**File:** `architecture.html` (project root — open in browser)
+**File:** `Project Files/architecture.html` (open in browser)
 
 Five Mermaid diagrams (updated for SA1_DiagnosticSupervisor + persistent state):
 1. Full 3-tier agent architecture — root + DA1–DA6 + SA1_DiagnosticSupervisor, T10 RAG path
@@ -864,9 +945,66 @@ Five Mermaid diagrams (updated for SA1_DiagnosticSupervisor + persistent state):
 
 ---
 
+### 15g. Pre-Interview Readiness Validator (check_demo.py)
+
+**File:** `check_demo.py` (project root)
+
+Run this AFTER `serve_demo.py` is already running. Validates all critical systems in ~15 seconds.
+
+```powershell
+# From c:\Muru_Workspace:
+python pay_restore_demo/check_demo.py
+```
+
+**What it checks (14 checks):**
+- Server up (HTTP reachability)
+- orbit_chat.html served + contains `__CARD_FORM__` token reference
+- Architecture diagrams served at both URL paths
+- Help Center index served
+- ADK dev-ui accessible
+- DB present + all 15 accounts exist
+- ChromaDB collection populated (≥20 chunks)
+- Azure Content Safety credentials present in env
+- Session creation via ADK API
+- SSE endpoint responds within 15s (actual agent call to account 20006)
+- `/reset-db` endpoint returns 200
+
+**Exits with code 0** if all checks pass, **code 1** if any fail. Each check prints ✓/✗ immediately.
+
+Use `check_demo.py` as the final gate before an interview. Fix any FAIL before presenting.
+
+---
+
+### 15h. T13 AutoPay Demo Path (Persona 5 Variant)
+
+Demonstrates how enabling AutoPay mid-flow on a SUSPENDED account converts a Rule B waiver failure into a pass. Uses Morgan 20005 (18-month tenure, AutoPay OFF, $25 late fee baseline).
+
+**Variant turn script (add to Persona 5 demo session if needed):**
+
+| Turn | Customer says | Expected behaviour |
+|------|--------------|-------------------|
+| 1 | `20005. Our account is suspended. Can you get us back online?` | T1 + DA1/DA2 parallel → fee denied ($25, Rule B: AutoPay OFF). Valid card 6644 offered. |
+| 1b | `Actually wait — can you enable AutoPay first? I didn't know it was off.` | T13_UpdateAutoPay(20005, enabled=1). VA discloses that T4 re-evaluates at payment time, so fee may now be waived. |
+| 2 | `Yes, use the card on file. Go ahead.` | DA2 runs T4 again at payment time → AutoPay now ON → Rule A (18mo), B (ON), C (no prior waiver) all pass → waiver GRANTED. T3 charges $49 only. DA3 restores. |
+
+**Key teaching points:**
+- T13 is non-destructive — no payment processed, no consent gate.
+- T4 evaluates AutoPay status **at payment time**, not at Turn 1. Enabling it mid-flow counts.
+- VA must disclose the consequence before calling T13 on a suspended account.
+- Rule A still gates: if account were 2mo (Jordan 20002), enabling AutoPay would still fail Rule A.
+
+This path is documented in `Agent Sim/01_primary_scenarios.md` under Persona 5 (account 20005).
+
+---
+
 ## 16. Phase 5 Issues Found & Fixed
 
 Issues discovered during batch simulation runs (run_all_scenarios.py) and their resolutions.
+
+> **Note:** The SIGNAL A/D issues below were patched during Phase 5 while SA1_RestoreSupervisor
+> (Approach B) was still the restore coordinator. These patches were later superseded by the
+> Approach C refactor (Section 17b) which replaced transcript scanning with SQLite persistent
+> state. The SIGNAL fixes are documented here for historical completeness only.
 
 | Issue | Root Cause | Fix Applied |
 |-------|-----------|-------------|
@@ -878,6 +1016,7 @@ Issues discovered during batch simulation runs (run_all_scenarios.py) and their 
 | Transient DNS / ClientPayloadError on Gemini API | Network instability during batch run | run_all_scenarios.py now retries once on network errors (5s delay before retry) |
 | ChromaDB install lock error on Windows | `[WinError 32]` on kubernetes package during pip install | Fixed: `pip install chromadb beautifulsoup4 --user` |
 | `text-embedding-004` model not found | Not available via AI Studio API key | Corrected to `gemini-embedding-2` in both rag_seed.py and T10_SearchKnowledge.py |
+| Layer 3 instruction contradiction | agent.py Layer 3 "Fee waiver DENIED" used "I know that's not the news you were hoping for" as the "Right" example — but TONE section explicitly marks that phrase as FORBIDDEN in restore confirmation turns | Both Layer 3 passages updated: fee denial is now matter-of-fact with reason; restore confirmation leads with success and adds fee briefly without the forbidden phrase |
 
 ---
 
@@ -915,7 +1054,7 @@ numbering keeps the tool-to-agent mapping consistent with T11/T12.
 
 **agent.py changes:**
 - Added `t0g_tool = FunctionTool(T0_GetSessionState)` and `t0s_tool = FunctionTool(T0_SetSessionState)`
-- 11 tools total in root_agent
+- Added `t13_tool` (T13_UpdateAutoPay, injected via functools.partial) — 12 tools total in root_agent
 - Full SIGNAL A/B/C/D/E/P instruction block replaced with ROW 1–7 dispatch table
 
 ### 17c. State Machine Pattern Fixes
@@ -976,12 +1115,80 @@ fire-and-return, no customer interaction between steps). The only novel concept 
 would add — Layer 1 block as a side-effect trigger — can be described verbally during demo.
 Adding it would add implementation complexity without demonstrating a new pattern.
 
-### 17g. Validation Results (this session)
+### 17g. Validation Results
+
+**Full 13-persona batch run completed: 2026-07-08**
+
+All 13 primary personas (P01–P13, accounts 20001–20013) were run in a single batch using
+`Agent Sim/run_all_personas.py` with untruncated transcript output. Results:
 
 | Persona | Account | Scenario | Result |
 |---------|---------|----------|--------|
 | 1 | Alex 20001 | Primary happy path — data SAFE, card expired, waiver PASS, Business upgrade 3mo | PASS |
-| 3 | Sam 20003 | Data AT RISK — 35 days, card expired, waiver PASS, no plan change | PASS (after ROW 5/6 fix) |
+| 2 | Jordan 20002 | Waiver FAIL Rule A (2mo < 6mo threshold) — $74 charged, restore completed | PASS |
+| 3 | Sam 20003 | Data AT RISK — 35 days, card expired, waiver PASS, dashboard language used (no "projects intact") | PASS (T0 stale Turn 1 — see note) |
+| 4 | Riley 20004 | Waiver FAIL Rule C — $20 charged ($10 balance + $10 fee), restore completed | PASS |
+| 5 | Avery 20010 | Enterprise 30mo, waiver PASS, $399 charged card 4321, 35 projects | PASS |
+| 6 | Casey 20006 | Active account — Team → Business upgrade, DA4 direct, effective 2026-08-01 | PASS |
+| 7 | Drew 20007 | Downgrade BLOCKED — 25 seats > 10 Team max, PLAN_BLOCKED, escalation offered | PASS |
+| 8 | Parker 20011 | CANCELED → win-back, T10 called, 4 plans listed | PASS |
+| 9 | Morgan 20005 | SUSPENDED, autopay OFF, waiver FAIL Rule B — $74 charged card 6644, restore complete | PASS (re-run 2026-07-09) |
+| 10 | Quinn 20008 | Clean downgrade Business → Team (5 seats), storage warning, effective 2026-08-01 | PASS |
+| 11 | Jamie 20009 | 6.0mo → Rule A FAIL (not strictly > 6mo), $179 ($129 + $50 fee), restore complete | PASS |
+| 12 | Taylor 20012 | SA1_DiagnosticSupervisor — storage 95/100 GB culprit, upgrade path offered | PASS |
+| 13 | Blake 20013 | SA1_DiagnosticSupervisor — GitHub auth_failure (5x) culprit, reconnect steps given | PASS |
+
+**Known issues from this run:**
+- **P3 Turn 1 stale T0 cache:** T0_SessionState.py uses a module-level SQLite connection. When
+  z_reset_world.py drops and recreates orbit.db between personas in a batch run, the module-level
+  `_conn` still points to the old (Windows-held) file. Turn 1 for Persona 3 displayed Persona 1's
+  cached account data (wrong first_name/tenure/projects). Turn 2 recovered correctly when T0_Get
+  returned no row for account 20003 (not in old DB) → T1 called fresh. This is a batch-runner
+  artifact only — in production (serve_demo.py), each server restart gives a fresh module import.
+- **P9 transient DNS failure (original run):** `ClientConnectorDNSError` on Turn 2. Resolved on
+  standalone re-run (2026-07-09) — clean PASS confirmed.
 
 **test_conversation.py DB path fix:** Changed `_db_path` from `_project_dir/orbit.db` to
 `_project_dir/agents_tools_db/orbit.db` so the post-run DB verification reads the correct file.
+
+**Latency optimizations validated (all 3 active as of 2026-07-08):**
+1. T1 + T0_Get parallelized at turn start (prior session)
+2. DA3 + DA4 MODE V parallelized in ROW 6 same-turn restore+validate (prior session)
+3. T1 session-cache in T0 — subsequent turns skip T1 entirely (this session)
+
+**Instruction token reduction (2026-07-08):** 24 lines removed from agent.py across 7 edits.
+No business rules, dispatch table rows, guardrails, or fee waiver relay chain were touched.
+
+### 17h. Post-Phase-5 Session Changes (T13, Layer 3, serve_demo.py, Reset Demo)
+
+Changes added in the session after Phase 5 was fully validated.
+
+**T13_UpdateAutoPay (new tool):**
+- File: `agents_tools_db/T13_UpdateAutoPay.py`
+- Enables or disables AutoPay on any account. Non-destructive — no payment processed.
+- Injected via functools.partial into root_agent as `t13_tool`. Root_agent total tools: 12.
+- Key business value: enabling AutoPay on a SUSPENDED account before payment can convert a Rule B
+  waiver failure into a waiver pass, because T4 re-evaluates at payment time.
+- Root_agent discloses this to the customer on SUSPENDED accounts before calling T13.
+- ROW 6 dispatch is not affected — T13 is a standalone root_agent action, not part of the restore sequence.
+
+**Layer 3 instruction contradiction fix (agent.py):**
+- TONE section (RESTORE CONFIRMATION STRUCTURE) explicitly marks "I know that's not the news you were
+  hoping for" as FORBIDDEN in restore confirmation turns.
+- Layer 3 "Fee waiver DENIED" passage was using that exact phrase as the "Right" example — a direct
+  contradiction that caused the agent to use the forbidden phrase in real conversations.
+- Fix: Layer 3 fee denial (Turn 1) now instructs matter-of-fact delivery with reason, no dramatizing.
+- Fix: Layer 3 restore confirmation (fee applied case) now leads with restore success and adds the fee
+  briefly — consistent with the TONE section.
+
+**serve_demo.py — port kill + /reset-db:**
+- `_kill_port(8000)` runs on startup: `netstat -ano` finds PIDs on port 8000, `taskkill /F /PID` frees
+  them. Skips gracefully on any exception (fail-open). Solves "address already in use" on relaunch.
+- `POST /reset-db` endpoint: calls `z_reset_world.py` via `runpy` — resets DB mid-demo without
+  restarting the server. Returns `{"status": "ok"}` or `{"status": "error", "message": "..."}`.
+
+**orbit_chat.html — Reset Demo button:**
+- Button in the nav bar (before status dot): `↺ Reset Demo`
+- On click: confirm dialog → `POST /reset-db` → 400ms pause → `window.location.reload()`
+- The reload triggers `initSession()` on boot, giving a completely clean conversation slate.
+- Button shows "Resetting…" and is disabled during the request; re-enables with error message on failure.

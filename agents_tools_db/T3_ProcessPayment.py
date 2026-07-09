@@ -30,18 +30,20 @@ from .log_setup import get_logger
 _log = get_logger("tool.T3")
 
 
-def T3_ProcessPayment(conn, account_id, new_card_last4=None):
+def T3_ProcessPayment(conn, account_id, new_card_last4=None, late_fee_amount=None):
     """
-    Charges the customer's full pending balance.
+    Charges the customer's full pending balance plus any applicable late fee.
     If new_card_last4 is provided, updates card on file before charging.
+    If late_fee_amount is provided (waiver denied), adds it to the total charge.
 
     Args:
-        conn           : Active SQLite database connection (injected by agent framework).
-        account_id     : The customer's 5-digit account ID (e.g., 20001).
-        new_card_last4 : Last 4 digits of new card (string), or None to use card on file.
+        conn             : Active SQLite database connection (injected by agent framework).
+        account_id       : The customer's 5-digit account ID (e.g., 20001).
+        new_card_last4   : Last 4 digits of new card (string), or None to use card on file.
+        late_fee_amount  : Late fee to add to charge (float), or None if waiver granted.
 
     Returns:
-        dict: Amount charged and card last 4 used.
+        dict: Total amount charged (balance + late_fee) and card last 4 used.
     """
     cursor = conn.cursor()
 
@@ -56,8 +58,10 @@ def T3_ProcessPayment(conn, account_id, new_card_last4=None):
             return {"status": "error", "message": "Account not found."}
 
         pending_balance, card_on_file = row
+        late_fee = float(late_fee_amount) if late_fee_amount else 0.0
+        total_charged = pending_balance + late_fee
 
-        if new_card_last4:
+        if new_card_last4 is not None and new_card_last4 != "":
             cursor.execute("""
                 UPDATE customer_accounts
                 SET card_last4 = ?, card_expired = 0
@@ -76,12 +80,13 @@ def T3_ProcessPayment(conn, account_id, new_card_last4=None):
         conn.commit()
 
         _log.info(
-            f"PAYMENT_OK  account={account_id}  amount={pending_balance:.2f}"
+            f"PAYMENT_OK  account={account_id}  amount={total_charged:.2f}"
             f"  card_last4={card_last4_used}  new_card={'yes' if new_card_last4 else 'no'}"
+            f"  late_fee={late_fee:.2f}"
         )
         return {
             "status":         "success",
-            "amount_charged": pending_balance,
+            "amount_charged": total_charged,
             "card_last4_used": card_last4_used,
         }
 

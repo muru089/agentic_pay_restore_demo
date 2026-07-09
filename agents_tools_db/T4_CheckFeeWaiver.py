@@ -80,7 +80,7 @@ def T4_CheckFeeWaiver(conn, account_id):
                 "waiver_granted": True,
                 "late_fee_amount": 0.00,
                 "reason": (
-                    f"you've been with us for {tenure_months:.0f} months, "
+                    f"as you have been with us for {tenure_months:.0f} months, "
                     f"had AutoPay enabled, and haven't used a waiver in the past 12 months"
                 ),
             }

@@ -581,3 +581,282 @@ Reset DB before each session: `py pay_restore_demo/agents_tools_db/z_reset_world
 118. Customer on 20012 asks SA1 "is it a billing problem?" → SA1 synthesis confirms it is not billing — account is ACTIVE with no balance; storage is the identified cause
 119. Customer on 20013 asks "when did GitHub last sync?" → SA1/DA6_IntegrationAgent reports last_sync date (3 days ago) from T12 output, does not guess
 120. After SA1 diagnosis on 20012 (storage culprit), customer asks to upgrade plan → root_agent routes to DA4_PlanAgent correctly; SA1 is not re-invoked for a plan change
+
+---
+
+## Part C — Extended Scenarios (121–130)
+
+*Added after initial coverage review. These scenarios cover gaps identified in the active-account billing path, payment failure handling, SA1 all-healthy synthesis, post-resolve follow-up queries, mid-flow card correction, ACTIVE account cancellation, invalid plan names, and timed-upgrade revert date inquiry.*
+
+---
+
+### Active-Account Billing (Dana 20015)
+
+**Account snapshot — Dana 20015:**
+ACTIVE | Team ($49/mo) | 14.0 months | AutoPay OFF | Pending balance $49.00 | Card 7722 (valid) | Storage 60/100 GB (60%) | GitHub healthy
+
+> Dana represents the only account in the demo world that is ACTIVE but has an outstanding invoice balance. She is NOT suspended — her account is still accessible, but the monthly bill was not collected (AutoPay is OFF). This is a manual-pay billing scenario, not a restore scenario.
+
+---
+
+#### 121 · Dana 20015 · ACTIVE account with outstanding balance — invoice payment only
+
+**Account:** Dana 20015 (Team, ACTIVE, $49 due, card 7722 valid, autopay OFF)
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Account 20015 — I need to pay my monthly bill." |
+| 2 | "Yes, use the card on file and pay it." |
+
+**Expected Turn 1:** T1 returns ACTIVE + $49 pending balance. Agent presents the outstanding invoice: "Hi Dana! I can see there's a $49 invoice due on your Ironforge account. Would you like to pay with your card on file ending in 7722?"
+
+**Expected Turn 2:** Consent given → DA2 called (T3 only — charges $49 to card 7722). No T4 fee waiver (no late fee on active billing), no DA1 (no data check), no DA3 (no restore). Account stays ACTIVE. Receipt sent.
+
+**Key checks:**
+- Agent does NOT run DA1_AccountAgent or T2_CheckDataRetention (no suspension)
+- Agent does NOT run T4_CheckFeeWaiver (fee waiver is only for suspended accounts)
+- Agent does NOT run DA3_RestoreAgent or T5_RestoreAccount (account not suspended)
+- T3 is called with card on file (no new card needed — card 7722 is valid)
+- Response does NOT mention "projects", "data safe", or "restore"
+- Warm close after payment: no restore receipt needed; just payment confirmation
+
+**What makes this unique:** This is the only flow where T3 is called on an ACTIVE account. The billing agent path is entirely separate from the restore path — DA2 handles billing in both contexts, but the handoff instruction from root_agent differs.
+
+---
+
+#### 122 · Dana 20015 · Active billing + immediate plan upgrade in same session
+
+**Account:** Dana 20015 (Team, ACTIVE, $49 due, card 7722 valid, 6 seats)
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Account 20015 — I need to pay my bill and also upgrade to Business." |
+| 2 | "Yes, pay with my card and confirm the upgrade." |
+| 3 | "Yes, upgrade to Business." |
+
+**Expected Turn 1:** T1 returns ACTIVE + $49 + intent signals (pay + upgrade). Agent presents invoice and validates the Business upgrade in the same response: balance due, upgrade plan details (→ DA4 MODE V for T9 validation: 6 seats ≤ 30 max, eligible=True), awaits confirmation.
+
+**Expected Turn 2:** Consent given → DA2 (T3 charges $49 to card 7722) AND DA4 MODE V returned details → confirmation received → proceed.
+
+**Expected Turn 3:** DA4 MODE E (T6 upgrades to Business permanently, T8 receipt).
+
+**Key checks:**
+- DA4 is invoked for an ACTIVE account (not post-restore) with a simultaneous billing action
+- T9 seat count check: 6 seats ≤ 30 Business max → eligible=True
+- T3 charges $49 only (no late fee on active billing)
+- Plan change confirmation comes AFTER billing is cleared
+- Agent does NOT confuse the billing step with the restore flow — no T5, no DA1
+
+---
+
+### Payment Failure Handling
+
+---
+
+#### 123 · Payment declined — DA2 returns failure, no restore proceeds
+
+**Account:** Any suspended account (e.g., Alex 20001)
+
+**Setup note:** This scenario requires a test condition where T3_ProcessPayment returns a payment failure (e.g., simulated card decline). In the current demo world, T3 always succeeds when pending_balance > 0 and a card is available. To trigger this scenario in testing, T3 must be mocked to return an error, or the DB must be in a state where the charge cannot complete.
+
+**Expected behavior (regardless of trigger):**
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Account 20001 — suspended. Restore my account. The new card is 4111 1111 1111 9999. Go ahead." |
+| Agent | T3 called → payment declined (simulated) → DA2 returns error |
+
+**Expected:** Agent acknowledges the payment failure. Does NOT call DA3 or T5 under any circumstances. Reports the issue: "I wasn't able to process the payment — the card was declined. Would you like to try a different card, or would you prefer I connect you with our billing team?"
+
+**Key checks:**
+- T5_RestoreAccount is NEVER called if T3 returned an error
+- DA3_RestoreAgent is NEVER called if DA2 did not confirm payment success
+- Agent offers a clear resolution path (new card or escalation) — does not dead-end
+- Session state: payment_cleared remains 0; restore_complete remains 0
+- The agent's ROW 6 gate ("GATE: DA3 is ONLY called after DA2 returns payment success") is the critical guard being tested here
+
+---
+
+### SA1 All-Healthy Synthesis
+
+---
+
+#### 124 · SA1 all-healthy — every check returns green (Priya 20014)
+
+**Account:** Priya 20014 (Business, ACTIVE, $0 balance, 20mo, autopay OFF, card 6691, 220/500 GB = 44%, Jira healthy, last sync 1 day ago, 0 auth failures)
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Account 20014 — our team says the platform has been feeling sluggish lately. I'm not sure if it's a storage issue, our Jira integration, or something else entirely." |
+| 2 | "Okay, thanks. Could it be on our end then?" |
+
+**Expected Turn 1:** root_agent recognises ambiguous multi-dimensional health complaint → routes to SA1_DiagnosticSupervisor. SA1 fans out: DA1 + DA5 (T11) + DA6 (T12) in parallel.
+
+- DA1: account ACTIVE, $0 balance, no issues
+- T11: 220/500 GB used (44%) → `near_limit=False` — well below the 90% threshold
+- T12: Jira — `integration_status=healthy`, `auth_failures=0`, last sync 1 day ago → no action required
+
+SA1 synthesis: **PRIMARY_FINDING=all_healthy, severity=HEALTHY** — no storage pressure, no integration failures, no account issues.
+
+Agent: "Good news — everything looks healthy on our end. Your storage is at 44% (220 of 500 GB) with plenty of headroom, your Jira integration is syncing normally, and your account is in great standing."
+
+**Expected Turn 2:** Agent acknowledges the complaint is not Orbit-side. Suggests checking client-side factors (browser cache, network, device performance). Does NOT call any additional diagnostic tools — the health check is complete.
+
+**Key checks:**
+- SA1 is invoked (ambiguous multi-dimensional complaint), not DA5 or DA6 alone
+- SA1 correctly synthesises all_healthy — does NOT fabricate a culprit when all checks pass
+- Agent does NOT claim a billing problem, storage pressure, or integration issue when none exist
+- Contrast with 20012 (storage culprit) and 20013 (integration culprit) — same fan-out architecture, different outcome
+- Demonstrates that SA1 is accurate in both directions: identifying real issues AND confirming healthy state
+
+---
+
+### Post-Resolve Follow-Up Queries
+
+---
+
+#### 125 · Post-restore: customer asks about storage → DA5 direct, SA1 not invoked
+
+**Account:** Alex 20001 (after restore — account now ACTIVE, Team, 72/100 GB storage, Slack healthy)
+
+**Context:** This scenario runs after Persona 1 has completed (account restored, plan upgraded to Business). Customer asks a single-intent storage question in the same session.
+
+| Turn | Utterance |
+|------|-----------|
+| After full restore | "By the way — how much storage are we using on the account?" |
+
+**Expected:** Single-intent storage query on a now-ACTIVE account → root_agent routes DIRECTLY to DA5_StorageAgent (T11), bypassing SA1. T11 returns: storage_used_gb, plan_storage_gb (now 500 GB post-Business upgrade), storage_pct.
+
+Agent reports storage cleanly: "You're currently using [X] GB of your [new plan] storage — plenty of headroom."
+
+**Key checks:**
+- SA1_DiagnosticSupervisor is NOT invoked (single-intent, no multi-dimensional complaint)
+- DA5_StorageAgent IS invoked directly (T11 runs)
+- Agent does NOT re-enter the restore flow (session state: restore_complete=1)
+- If plan was just upgraded to Business, T11 reflects the new plan's storage limit (500 GB)
+- Demonstrates single-intent bypass working correctly in a post-resolve context
+
+---
+
+#### 130 · After timed upgrade: "when does my plan revert?" → date from context
+
+**Account:** Alex 20001 (after Business upgrade for 3 months — downgrade_date set in DB by T6)
+
+**Context:** Persona 1 Turn 3 confirmed "Your Business upgrade is active for 3 months, reverting on [date]." Customer sends a follow-up asking for the exact revert date.
+
+| Turn | Utterance |
+|------|-----------|
+| After Turn 3 of Persona 1 | "Wait — what's the exact date my plan goes back to Team?" |
+
+**Expected:** Agent provides the auto-revert date from context (today + 90 days). Does NOT re-call DA4, T9, or T6. Does NOT re-run the plan change flow. Answers from what was already confirmed in the session.
+
+**Key checks:**
+- No new tool calls for a follow-up date question (no DA4, no T9)
+- Agent quotes the specific revert date, not just "3 months from now"
+- Response is brief — this is a simple factual follow-up, not a new flow
+- If the revert date is not in immediate context, agent may call T1 or check T0_GetSessionState to retrieve downgrade_date from the DB rather than guessing
+
+---
+
+### Conversation Dynamics — State Correction
+
+---
+
+#### 126 · Customer declines payment then changes mind next turn
+
+**Account:** Alex 20001 (SUSPENDED | Team | card 4242 expired | $49)
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Our account is suspended. Account 20001. Need it restored." |
+| 2 | "No, I'm not going to pay right now. We'll deal with it later." |
+| 3 | "Actually, you know what — go ahead. New card: 4111 1111 1111 4321. Restore it." |
+
+**Expected Turn 2:** Agent holds gracefully. No charge, no restore. Session state: payment_cleared=0, restore_complete=0. Response: "No problem — your account will remain suspended until the balance is cleared. We'll be here whenever you're ready."
+
+**Expected Turn 3:** Turn 3 contains new card + explicit consent ("go ahead" + "restore it"). Agent re-enters ROW 6 (STEP 6) — payment_cleared is still 0, so the row fires again. Card is valid (16 digits provided). Consent confirmed → DA2 (T3: $49 to 4321) + DA3 (T5 restore) → restore completes normally.
+
+**Key checks:**
+- Agent does NOT charge or restore in Turn 2
+- Agent does NOT ask for card details again in Turn 2 — just holds warmly
+- Turn 3 is treated as a fresh consent + card signal in STEP 6 — no prior session state blocks it
+- T0_GetSessionState is consulted at Turn 3 start: payment_cleared=0 → ROW 6 fires correctly
+- The "change of heart" must be handled without the agent requiring the customer to re-state their problem
+
+---
+
+#### 127 · Customer provides wrong card, corrects it before payment is processed
+
+**Account:** Alex 20001 (SUSPENDED | Team | card 4242 expired | $49)
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Our account is suspended. Account 20001." |
+| 2 | "New card: 4111 1111 1111 9999." |
+| 3 | "Wait, that's wrong. Use this one instead: 4111 1111 1111 4321." |
+| 4 | "Yes, go ahead and charge it." |
+
+**Expected Turn 2:** Agent acknowledges card ending 9999. Asks for consent separately: "Got it — I have the new card ending in 9999. Shall I go ahead and charge $49 to restore your account?" (STEP 6 CASE A — card provided but no consent word in the same message.)
+
+**Expected Turn 3:** Customer corrects the card to 4321 (new 16-digit number in message). Agent updates its understanding to the new card. Does NOT use 9999. Asks for consent again with the corrected number: "Got it — using the card ending in 4321 instead. Shall I go ahead and charge $49?"
+
+**Expected Turn 4:** Consent → T3 called with new_card_last4="4321". Card ending 4321 confirmed in receipt.
+
+**Key checks:**
+- Agent uses the MOST RECENTLY PROVIDED card number — never falls back to a prior turn's card
+- T3 is called with new_card_last4="4321" (not "9999")
+- Agent never silently proceeds to charge 9999 after the customer corrected it
+- STEP 6 CASE B rule: "Card number MUST be complete in THIS SINGLE message. Do NOT combine digits from different turns." Each turn's card number is evaluated independently.
+
+---
+
+### Routing Edge Cases
+
+---
+
+#### 128 · ACTIVE account requests cancellation → escalation, no billing or restore
+
+**Account:** Casey 20006 (ACTIVE | Team | 8mo | $0 balance)
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "I want to cancel my Orbit account. Account 20006." |
+
+**Expected:** T1 returns ACTIVE. The cancellation request is a hard routing case — the VA cannot process account cancellations. Agent offers warm escalation: "I can help route you to our team to process a cancellation — they'll walk you through the final steps. Would you like me to do that?"
+
+No billing action, no plan change, no restore. DA2, DA3, DA4 are all NOT called.
+
+**Key checks:**
+- No tool calls beyond T1
+- Agent does NOT attempt to process the cancellation via any existing tool
+- Escalation message is warm, not robotic — treats cancellation as a valid customer choice
+- If customer says "yes, connect me" → agent provides the escalation message and confirms the team will reach out
+- Contrast with TC47 (SUSPENDED account asking to cancel) — the routing is the same but the context differs (no balance, no card expiry to address first)
+
+---
+
+#### 129 · Customer requests an invalid plan name ("Premium")
+
+**Account:** Casey 20006 (ACTIVE | Team)
+
+| Turn | Utterance |
+|------|-----------|
+| 1 | "Account 20006 — I want to upgrade to the Premium plan." |
+
+**Expected:** T1 returns ACTIVE. Agent routes to DA4. DA4 calls T9 with `new_plan_name="Premium"`. T9 queries plan_catalog — no "Premium" entry exists. T9 returns a plan_not_found error or eligible=False.
+
+Agent responds with the available options: "We don't have a Premium plan — our plans are Individual ($10/mo), Team ($49/mo), Business ($129/mo), and Enterprise ($399/mo). Which would you like to upgrade to?"
+
+**Key checks:**
+- T9 handles the plan_not_found case gracefully — returns an error rather than crashing
+- DA4 relays the error and the available plan list — does NOT call T6
+- Agent does NOT make up a "Premium" plan price or fabricate plan details
+- T6_ChangePlan is NEVER called (T9 gates it — eligible must be True)
+- Agent presents all 4 valid plan names from plan_catalog so the customer can choose correctly
+
+---
+
+> **Note — scenarios 116, 123:** These require test conditions not achievable through normal conversation flow:
+> - **116** (SA1 conflicting signals) needs an account with BOTH near-limit storage (≥90%) AND integration auth_failure. No existing account has both simultaneously — would require a new demo account or a DB seed modification.
+> - **123** (payment declined) needs T3 to return a failure response. T3 in the current demo always succeeds when pending_balance > 0. Testing this path requires either a mock T3 or a temporary DB modification. Both are candidates for a future test harness upgrade.
+

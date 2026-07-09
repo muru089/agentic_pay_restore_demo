@@ -4,7 +4,7 @@ T10_SearchKnowledge.py — RAG retrieval tool
 TOOL TYPE : Knowledge retrieval (no DB connection — opens ChromaDB directly)
 CALLED BY : root_agent only (policy/FAQ questions don't need account context)
 
-Embeds the customer's query using the same Gemini text-embedding-004 model
+Embeds the customer's query using the same gemini-embedding-2 model
 used at index time, queries ChromaDB for the top-3 matching chunks, and
 returns them as a single formatted context string for the agent to answer from.
 

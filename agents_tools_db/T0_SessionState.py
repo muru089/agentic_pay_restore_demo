@@ -31,7 +31,23 @@ from typing import Optional
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "orbit.db")
 
+# Module-level connection — avoids open/close overhead on every T0 call.
+# WAL mode + check_same_thread=False matches the pattern used in agent.py / DA2.
+_conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None, timeout=30.0)
+_conn.execute("PRAGMA journal_mode=WAL")
+_conn.row_factory = sqlite3.Row
+
 _DEFAULTS = {
+    # T1 cache fields
+    "t1_cached":              0,
+    "first_name":             None,
+    "company_name":           None,
+    "plan_name":              None,
+    "tenure_months":          None,
+    "card_last4":             None,
+    "card_expired":           None,
+    "pending_balance":        None,
+    # restore flow state
     "data_checked":           0,
     "data_safe":              1,
     "days_suspended":         0,
@@ -59,21 +75,26 @@ def T0_GetSessionState(account_id: int) -> dict:
     determine which step to execute next.
     Input: account_id (integer).
     """
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    try:
-        row = conn.execute(
-            "SELECT * FROM session_state WHERE account_id = ?", (account_id,)
-        ).fetchone()
-        if row:
-            return dict(row)
-        return {"account_id": account_id, **_DEFAULTS}
-    finally:
-        conn.close()
+    row = _conn.execute(
+        "SELECT * FROM session_state WHERE account_id = ?", (account_id,)
+    ).fetchone()
+    if row:
+        return dict(row)
+    return {"account_id": account_id, **_DEFAULTS}
 
 
 def T0_SetSessionState(
     account_id: int,
+    # T1 cache fields
+    t1_cached:              Optional[int]   = None,
+    first_name:             Optional[str]   = None,
+    company_name:           Optional[str]   = None,
+    plan_name:              Optional[str]   = None,
+    tenure_months:          Optional[float] = None,
+    card_last4:             Optional[str]   = None,
+    card_expired:           Optional[int]   = None,
+    pending_balance:        Optional[float] = None,
+    # restore flow state
     data_checked:           Optional[int]   = None,
     data_safe:              Optional[int]   = None,
     days_suspended:         Optional[int]   = None,
@@ -95,10 +116,23 @@ def T0_SetSessionState(
     Only pass the fields you want to change — unspecified fields are left as-is.
     Call this after each completed step to record progress so the next turn
     knows exactly where to resume.
+    To explicitly clear a TEXT field to NULL (e.g. plan_name_requested after a
+    plan change completes), pass the empty string "" — it is treated as a clear
+    sentinel. Omitting a field (or passing None) leaves it unchanged.
     Input: account_id (integer) + any subset of state fields to update.
     Returns the full updated state after the write.
     """
     local_args = {
+        # T1 cache fields
+        "t1_cached":             t1_cached,
+        "first_name":            first_name,
+        "company_name":          company_name,
+        "plan_name":             plan_name,
+        "tenure_months":         tenure_months,
+        "card_last4":            card_last4,
+        "card_expired":          card_expired,
+        "pending_balance":       pending_balance,
+        # restore flow state
         "data_checked":          data_checked,
         "data_safe":             data_safe,
         "days_suspended":        days_suspended,
@@ -115,42 +149,44 @@ def T0_SetSessionState(
         "plan_validated":        plan_validated,
         "plan_executed":         plan_executed,
     }
-    updates = {k: v for k, v in local_args.items() if v is not None}
+    updates = {}
+    for k, v in local_args.items():
+        if v is None:
+            pass  # omit — leave field unchanged
+        elif isinstance(v, str) and v == "":
+            updates[k] = None  # empty string sentinel: clear TEXT field to NULL
+        else:
+            updates[k] = v
     updates["updated_at"] = datetime.now().isoformat()
 
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    try:
-        exists = conn.execute(
-            "SELECT 1 FROM session_state WHERE account_id = ?", (account_id,)
-        ).fetchone()
+    exists = _conn.execute(
+        "SELECT 1 FROM session_state WHERE account_id = ?", (account_id,)
+    ).fetchone()
 
-        if exists:
-            set_clause = ", ".join(f"{k} = ?" for k in updates)
-            conn.execute(
-                f"UPDATE session_state SET {set_clause} WHERE account_id = ?",
-                [*updates.values(), account_id],
-            )
-        else:
-            row_data = {"account_id": account_id, **_DEFAULTS, **updates}
-            cols = ", ".join(row_data.keys())
-            placeholders = ", ".join("?" * len(row_data))
-            conn.execute(
-                f"INSERT INTO session_state ({cols}) VALUES ({placeholders})",
-                list(row_data.values()),
-            )
-        conn.commit()
+    if exists:
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        _conn.execute(
+            f"UPDATE session_state SET {set_clause} WHERE account_id = ?",
+            [*updates.values(), account_id],
+        )
+    else:
+        row_data = {"account_id": account_id, **_DEFAULTS, **updates}
+        cols = ", ".join(row_data.keys())
+        placeholders = ", ".join("?" * len(row_data))
+        _conn.execute(
+            f"INSERT INTO session_state ({cols}) VALUES ({placeholders})",
+            list(row_data.values()),
+        )
 
-        row = conn.execute(
-            "SELECT * FROM session_state WHERE account_id = ?", (account_id,)
-        ).fetchone()
-        return dict(row)
-    finally:
-        conn.close()
+    row = _conn.execute(
+        "SELECT * FROM session_state WHERE account_id = ?", (account_id,)
+    ).fetchone()
+    return dict(row)
 
 
 if __name__ == "__main__":
     print("=== T0_SessionState smoke test ===")
+    # Uses the module-level _conn — no extra connection setup needed.
 
     # Fresh read
     s = T0_GetSessionState(20001)

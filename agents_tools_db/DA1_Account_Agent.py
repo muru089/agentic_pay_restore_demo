@@ -38,7 +38,7 @@ conn.execute("PRAGMA journal_mode=WAL")
 
 
 def create_db_tool(func, tool_name, description):
-    bound = functools.partial(func, conn=conn)
+    bound = functools.partial(func, conn)
     bound.__name__ = tool_name
     bound.__doc__  = description
     return FunctionTool(bound)
@@ -78,7 +78,7 @@ def _after_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackCont
 
 da1_account_agent = Agent(
     name="DA1_AccountAgent",
-    model="gemini-2.5-flash",
+    model="gemini-3.5-flash",
     planner=BuiltInPlanner(thinking_config=genai_types.ThinkingConfig(thinking_budget=0)),
     tools=[t2_tool],
     before_tool_callback=_before_tool,

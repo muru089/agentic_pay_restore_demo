@@ -209,6 +209,22 @@
   .receipt-ref   { font-size: 12px; color: #16a34a; margin-top: 2px; font-family: monospace; }
   .receipt-note  { font-size: 11px; color: #6b7280; margin-top: 4px; }
 
+  /* Escalation handoff card */
+  .escalation-card {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+    padding: 12px 14px; margin-top: 12px;
+  }
+  .escalation-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #2563eb; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; flex-shrink: 0;
+  }
+  .escalation-title { font-size: 13px; font-weight: 700; color: #1e40af; }
+  .escalation-eta   { font-size: 12px; color: #2563eb; margin-top: 2px; }
+  .escalation-note  { font-size: 11px; color: #6b7280; margin-top: 4px; }
+
   /* Error banner */
   .error-banner {
     display: flex; align-items: center; gap: 10px;
@@ -277,6 +293,24 @@
   .welcome h2 { font-size: 20px; font-weight: 700; }
   .welcome p { font-size: 14px; color: #6b7280; max-width: 380px; line-height: 1.6; }
   .welcome-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
+
+  /* Compact session header — replaces welcome block once conversation starts */
+  .session-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; margin-bottom: 4px;
+    background: #f5f3ff; border-radius: 12px;
+    border: 1px solid #ede9fe;
+  }
+  .session-header-avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: linear-gradient(135deg, #5b4cf5, #7c3aed);
+    color: #fff; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .session-header-text { flex: 1; }
+  .session-header-name { font-size: 13px; font-weight: 600; color: #1a1a2e; }
+  .session-header-sub  { font-size: 11px; color: #6b7280; margin-top: 1px; }
   .chip {
     background: #ede9fe; color: #5b4cf5; font-size: 13px; font-weight: 500;
     padding: 6px 14px; border-radius: 20px; cursor: pointer; border: none;
@@ -310,6 +344,9 @@
   <a class="nav-logo" href="knowledge_base/html/index.html">Orbit<span>.</span></a>
   <span class="nav-title">AI Support Assistant</span>
   <div class="nav-status">
+    <a href="Project Files/architecture.html" target="_blank" style="font-size:13px;color:#6b7280;text-decoration:none;margin-right:12px;" onmouseover="this.style.color='#5b4cf5'" onmouseout="this.style.color='#6b7280'">Architecture</a>
+    <a href="knowledge_base/html/index.html" target="_blank" style="font-size:13px;color:#6b7280;text-decoration:none;margin-right:16px;" onmouseover="this.style.color='#5b4cf5'" onmouseout="this.style.color='#6b7280'">Help Center</a>
+    <button id="resetBtn" onclick="resetDemo()" style="font-size:12px;color:#6b7280;background:none;border:1px solid #e5e7eb;border-radius:6px;padding:4px 10px;cursor:pointer;margin-right:12px;" onmouseover="this.style.borderColor='#5b4cf5';this.style.color='#5b4cf5'" onmouseout="this.style.borderColor='#e5e7eb';this.style.color='#6b7280'">&#8635; Reset Demo</button>
     <div class="status-dot connecting" id="statusDot"></div>
     <span id="statusText">Connecting...</span>
   </div>
@@ -355,15 +392,134 @@
 <script>
 const APP_NAME  = 'pay_restore_demo';
 const BASE_URL  = 'http://127.0.0.1:8000';
-const USER_ID   = 'demo-user-' + Math.random().toString(36).slice(2, 8);
 
-let sessionId = null;
-let isWaiting = false;
-let pendingCardResolve = null;
+// ── localStorage keys ─────────────────────────────────────────────────────
+const LS_USER    = 'orbit_userId';
+const LS_SESSION = 'orbit_sessionId';
+const LS_MSGS    = 'orbit_messages';
+
+// Stable userId — generated once and reused across page reloads.
+var USER_ID = localStorage.getItem(LS_USER);
+if (!USER_ID) {
+  USER_ID = 'demo-user-' + Math.random().toString(36).slice(2, 8);
+  try { localStorage.setItem(LS_USER, USER_ID); } catch(e) {}
+}
+
+var sessionId = null;
+var isWaiting = false;
+var pendingCardResolve = null;
+
+// Persisted message history [{role, text}] for localStorage restore.
+var messageHistory = [];
+
+// ── Conversation flow state ───────────────────────────────────────────────
+// Tracks what has been completed so chips only suggest relevant next actions.
+// Flags advance forward-only — they never reset mid-conversation.
+// Reset on new session via resetFlowState().
+var flowState = {
+  dataChecked: false,  // Turn 1 diagnostic complete (DA1/DA2 results received)
+  paymentDone: false,  // Payment charged (requires #ORD- to prevent false positives)
+  restoreDone: false,  // Account restored (requires #ORD-)
+  planDone:    false,  // Plan change executed (requires #ORD-)
+};
+
+function resetFlowState() {
+  flowState.dataChecked = false;
+  flowState.paymentDone = false;
+  flowState.restoreDone = false;
+  flowState.planDone    = false;
+}
+
+// Called on every agent response to advance the state machine.
+function updateFlowState(text) {
+  if (!text) return;
+  var t   = text.toLowerCase();
+  var ord = /#ord-/i.test(text);
+
+  if (!flowState.dataChecked &&
+      /projects are intact|data is safe|at risk|exceeds.*30.day|data.*may|all \d+ projects/.test(t)) {
+    flowState.dataChecked = true;
+  }
+  if (ord) {
+    if (!flowState.restoreDone && /account is now active|back online/.test(t)) {
+      flowState.restoreDone = true;
+    }
+    if (!flowState.planDone && /plan/.test(t) && /(upgraded|downgraded)/.test(t)) {
+      flowState.planDone = true;
+    }
+    if (!flowState.paymentDone && /payment.*confirm|payment processed|charged.*card|balance.*cleared/.test(t)) {
+      flowState.paymentDone = true;
+    }
+  }
+}
+
+// ── Session persistence helpers ───────────────────────────────────────────
+
+function saveMessages() {
+  if (!sessionId) return;
+  try { localStorage.setItem(LS_MSGS + '_' + sessionId, JSON.stringify(messageHistory)); } catch(e) {}
+}
+
+function saveSession() {
+  try { localStorage.setItem(LS_SESSION, sessionId); } catch(e) {}
+}
+
+function clearSessionStorage() {
+  try {
+    var old = localStorage.getItem(LS_SESSION);
+    if (old) localStorage.removeItem(LS_MSGS + '_' + old);
+    localStorage.removeItem(LS_SESSION);
+  } catch(e) {}
+  messageHistory = [];
+}
 
 // ── Session init ──────────────────────────────────────────────────────────
 
 async function initSession() {
+  resetFlowState();
+
+  // Try to restore a previous session from localStorage.
+  var storedSessionId = null;
+  try { storedSessionId = localStorage.getItem(LS_SESSION); } catch(e) {}
+
+  if (storedSessionId) {
+    var storedMsgs = [];
+    try { storedMsgs = JSON.parse(localStorage.getItem(LS_MSGS + '_' + storedSessionId) || '[]'); } catch(e) {}
+
+    if (storedMsgs.length > 0) {
+      // Verify the session still exists on the server (fails after server restart).
+      var sessionValid = false;
+      try {
+        var chk = await fetch(BASE_URL + '/apps/' + APP_NAME + '/users/' + USER_ID + '/sessions/' + storedSessionId);
+        sessionValid = chk.ok;
+      } catch(e) {}
+
+      if (sessionValid) {
+        sessionId = storedSessionId;
+        messageHistory = storedMsgs;
+        // Hide welcome and render stored messages (no chips for history)
+        hideWelcome();
+        storedMsgs.forEach(function(m) {
+          var wrapEl = addBubbleNode(m.role, m.text, null);
+          if (m.role === 'agent' && m.text) {
+            var bubble = wrapEl.querySelector('.bubble');
+            var receiptCard = buildReceiptCard(m.text);
+            if (receiptCard && bubble) bubble.appendChild(receiptCard);
+            var escCard = buildEscalationCard(m.text);
+            if (escCard && bubble) bubble.appendChild(escCard);
+          }
+        });
+        setStatus('online', 'Online (session restored)');
+        document.getElementById('userInput').focus();
+        return;
+      }
+      // Session no longer exists on server (e.g. server restarted) — create fresh.
+      clearSessionStorage();
+    }
+  }
+
+  // No valid stored session — create a new one.
+  clearSessionStorage();
   try {
     const res = await fetch(BASE_URL + '/apps/' + APP_NAME + '/users/' + USER_ID + '/sessions', {
       method: 'POST',
@@ -373,6 +529,7 @@ async function initSession() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const session = await res.json();
     sessionId = session.id;
+    saveSession();
     setStatus('online', 'Online');
     document.getElementById('userInput').focus();
   } catch (e) {
@@ -392,7 +549,7 @@ function setStatus(state, text) {
 // Returns true if the text looks like a raw card number (16 consecutive digits, possibly space/dash separated)
 function containsCardNumber(text) {
   const stripped = text.replace(/[\s\-]/g, '');
-  return /\d{16}/.test(stripped);
+  return /^\d{16}$/.test(stripped);
 }
 
 async function sendMessage(overrideText) {
@@ -403,6 +560,9 @@ async function sendMessage(overrideText) {
     addErrorBanner('Still connecting to the backend — please wait a moment and try again.');
     return;
   }
+
+  // Hide all chip rows the moment the user sends anything
+  clearAllChips();
 
   // If card form is visible and user typed a new message, dismiss the form
   if (pendingCardResolve && !overrideText) {
@@ -424,8 +584,8 @@ async function sendMessage(overrideText) {
     input.value = '';
     autoResize(input);
     addBubble('agent',
-      "For your security, please don’t share card details directly in this chat window " +
-      "— I’ve got a secure form ready for you instead.");
+      "For your security, please don't share card details directly in this chat window " +
+      "— I've got a secure form ready for you instead.");
     isWaiting = false;
     setInput(true);
     showCardForm().then(function(cardResult) {
@@ -440,7 +600,11 @@ async function sendMessage(overrideText) {
   // Don't show raw JSON card responses as a user bubble — the green
   // "Payment Processed" card already provides the visual confirmation.
   var isCardJson = overrideText && overrideText.indexOf('{"status"') === 0;
-  if (!isCardJson) addBubble('user', text);
+  if (!isCardJson) {
+    addBubble('user', text);
+    messageHistory.push({ role: 'user', text: text });
+    saveMessages();
+  }
   if (!overrideText) input.value = '';
   autoResize(input);
 
@@ -466,8 +630,11 @@ async function sendMessage(overrideText) {
         streamBubble = streamRow.querySelector('.bubble');
       }
 
-      // displayText hides __CARD_FORM__ token during streaming
-      var displayText = accumulated.split('__CARD_FORM__')[0].trim();
+      // Strip internal tokens from the live streaming display
+      var displayText = accumulated
+        .split('__CARD_FORM__')[0]
+        .replace('__ESCALATION__', '')
+        .trim();
       if (streamBubble) {
         streamBubble.innerHTML = renderMarkdown(displayText);
       }
@@ -475,7 +642,7 @@ async function sendMessage(overrideText) {
     });
 
     // SSE complete
-    var agentText = accumulated || "I didn’t catch a response — please try again.";
+    var agentText = accumulated || "I didn't catch a response — please try again.";
 
     if (agentText.indexOf('__CARD_FORM__') !== -1) {
       // Bubble already shows pre-token text from streaming.
@@ -488,6 +655,9 @@ async function sendMessage(overrideText) {
         }
         // status === 'dismissed' means user typed a message instead — do nothing
       });
+      // Persist the display text (without the token) as the agent message
+      var displayOnly = agentText.split('__CARD_FORM__')[0].trim();
+      if (displayOnly) { messageHistory.push({ role: 'agent', text: displayOnly }); saveMessages(); }
       return;
     }
 
@@ -495,16 +665,34 @@ async function sendMessage(overrideText) {
       // Nothing streamed at all — fall back to static bubble
       addBubble('agent', agentText);
     } else {
-      // Final render already done in streaming callback; inject receipt card if applicable
-      var card = buildReceiptCard(agentText);
-      if (card && streamBubble) streamBubble.appendChild(card);
+      // Final render already done in streaming callback; inject rich cards and chips.
+      var hasEscalation = agentText.indexOf('__ESCALATION__') !== -1;
+      var displayText = agentText.replace('__ESCALATION__', '').trim();
+
+      // Update bubble to strip the token if it snuck into the streamed text
+      if (hasEscalation && streamBubble) {
+        streamBubble.innerHTML = renderMarkdown(displayText);
+      }
+
+      var receiptCard = buildReceiptCard(displayText);
+      if (receiptCard && streamBubble) streamBubble.appendChild(receiptCard);
+
+      if (hasEscalation) {
+        var escCard = buildEscalationCard(displayText);
+        if (escCard && streamBubble) streamBubble.appendChild(escCard);
+      }
+
       // Show contextual chips (skip for card JSON responses)
-      if (!isCardJson) showContextChips(agentText, streamRow);
+      if (!isCardJson && !hasEscalation) showContextChips(displayText, streamRow);
     }
+
+    // Persist agent message (strip internal tokens)
+    var persistText = agentText.replace('__ESCALATION__', '').replace('__CARD_FORM__', '').trim();
+    if (persistText && !isCardJson) { messageHistory.push({ role: 'agent', text: persistText }); saveMessages(); }
 
   } catch (e) {
     removeTyping(typingId);
-    addErrorBanner("I’m having trouble connecting right now. Please try again in a moment.");
+    addErrorBanner("I'm having trouble connecting right now. Please try again in a moment.");
     console.error('SSE error:', e);
   }
 
@@ -564,28 +752,81 @@ async function runSSE(text, onChunk) {
     }
   }
 
-  return allAgentText || lastEventText || "I didn’t catch a response — please try again.";
+  return allAgentText || lastEventText || "I didn't catch a response — please try again.";
 }
 
 // ── Contextual chips (mid-conversation) ──────────────────────────────────
 
+function clearAllChips() {
+  document.querySelectorAll('.context-chips').forEach(function(el) { el.remove(); });
+}
+
 function showContextChips(agentText, wrapEl) {
-  if (isWaiting) return;
   if (!agentText || agentText.indexOf('{"status"') === 0) return;
 
-  var t = agentText.toLowerCase();
+  // Advance flow state from this response before selecting chips.
+  updateFlowState(agentText);
+
+  // Strip markdown markers before pattern testing so **Team** matches /team/.
+  var t = agentText.toLowerCase().replace(/[*_`]/g, '');
   var chips = [];
 
-  if (/data is safe|projects are intact|\d+ projects/.test(t)) {
-    chips = ['Pay now to restore', 'Tell me about Business plan', "What's the late fee?"];
-  } else if (/payment processed|charged to card/.test(t)) {
-    chips = ['Upgrade my plan', 'What changed on my account?'];
-  } else if (/account is now active|back online|restored/.test(t)) {
-    chips = ['Upgrade my plan', 'Check my balance'];
-  } else if (/plan options|business plan|team plan|individual plan/.test(t)) {
-    chips = ['How do upgrades work?', 'What are seat limits?', 'Compare plans'];
-  } else if (/fee waiver|late fee/.test(t)) {
-    chips = ['How do I qualify next time?', 'Tell me about AutoPay'];
+  // Human escalation — chips would be confusing while agent is handing off.
+  if (/i'll connect you|routing you|connect you with our|connecting you with/.test(t)) {
+    return;
+  }
+
+  // ── State-gated selection ──────────────────────────────────────────────
+  // State flags win over response-text matching. Once an action is completed,
+  // its chip category is suppressed for the rest of the session.
+  // Balance chips are intentionally excluded from all post-payment states
+  // (balance is $0 after payment — no point re-checking it).
+
+  if (flowState.planDone) {
+    // Everything done.
+    chips = ['Check my storage', 'Compare plans', 'Tell me about AutoPay'];
+
+  } else if (flowState.restoreDone) {
+    // Restored, plan change pending or nothing more to do.
+    // No balance chip — they just paid, balance is $0.
+    chips = ['Upgrade my plan', 'Check my storage', 'Compare plans'];
+
+  } else if (flowState.paymentDone) {
+    // Payment charged but restore pending (rare edge / error-recovery state).
+    chips = ['Check account status'];
+
+  } else if (flowState.dataChecked) {
+    // Post Turn-1 diagnostic, pre-payment. Narrow by current response content.
+    if (/at risk|exceeds.*30.day|purged|archived|data.*may/.test(t)) {
+      chips = ['Talk to a specialist', 'Restore anyway', 'What data can be recovered?'];
+    } else if (/shall i go ahead|would you like.*charge|shall i charge|confirm.*charge/.test(t)) {
+      // Consent-request phrasing — offer quick-confirm chip.
+      chips = ['Yes, go ahead', "What's the total?"];
+    } else {
+      // Standard pre-payment state (data safe, fee shown, card situation next).
+      chips = ['Pay now and restore', 'Upgrade to Business too', "What's the late fee?"];
+    }
+
+  } else {
+    // Active account or unknown state — fall back to response-text patterns.
+    if (/at risk|exceeds.*30.day|purged|archived|data.*may/.test(t)) {
+      chips = ['Talk to a specialist', 'Restore anyway', 'What data can be recovered?'];
+    } else if (/fee waiver|late fee|waiver.*applied|fee.*waived/.test(t)) {
+      chips = ['Pay and restore now', 'Tell me about AutoPay'];
+    } else if (/no balance due|all paid up|balance.*\$0/.test(t)) {
+      // Just confirmed $0 — no balance chip.
+      chips = ['Upgrade my plan', 'Check my storage', 'Compare plans'];
+    } else if (/already active|nothing to restore|account is active/.test(t)) {
+      chips = ['Upgrade my plan', "What's my balance?", 'Check my storage'];
+    } else if (/plan options|business plan|team plan|individual plan|enterprise plan|monthly.*\$|per month|upgrade.*plan|downgrade/.test(t)) {
+      chips = ['How do upgrades work?', 'What are seat limits?', 'Compare plans'];
+    } else if (/storage|upload.*fail|near.*limit|loading slow/.test(t)) {
+      chips = ['Upgrade for more storage', 'Archive old projects', 'Compare plans'];
+    } else if (/github|slack|integration|sync.*fail|auth.*fail|reconnect/.test(t)) {
+      chips = ['Reconnect integration', 'Check my storage', 'Compare plans'];
+    } else if (/what can i help|how can i help|help you with today|anything else.*i can|is there.*i can help/.test(t)) {
+      chips = ['Upgrade my plan', 'Compare plans', 'Check my storage'];
+    }
   }
 
   if (!chips.length) return;
@@ -612,23 +853,45 @@ function showContextChips(agentText, wrapEl) {
 
 function buildReceiptCard(text) {
   if (!text) return null;
-  var t = text.toLowerCase();
 
-  var hasOrder  = /#ord-/i.test(text);
+  // Only render a receipt card when there's an actual order reference.
+  var orderMatch = text.match(/#ORD-[A-Z0-9]+/i);
+  if (!orderMatch) return null;
+
+  var t = text.toLowerCase();
   var isPayment = /payment processed|charged to card/.test(t);
   var isRestore = /account is now active|back online|restored/.test(t);
   var isPlan    = /plan/.test(t) && /(upgraded|changed|active for)/.test(t);
 
-  if (!hasOrder && !isPayment && !isRestore && !isPlan) return null;
-
-  // Restore takes priority in title selection
   var title = 'Confirmed';
   if (isPayment) title = 'Payment Confirmed';
   if (isPlan)    title = 'Plan Updated';
   if (isRestore) title = 'Account Restored';
 
-  var orderMatch = text.match(/#ORD-[A-Z0-9]+/i);
-  var orderRef   = orderMatch ? orderMatch[0].toUpperCase() : '';
+  var orderRef = orderMatch[0].toUpperCase();
+
+  // Extract supplementary detail lines from the agent response text.
+  var details = [];
+
+  // Amount charged — e.g. "$49 has been charged" / "$74 has been charged" / "total charged: $49"
+  var amtMatch = text.match(/\$(\d+(?:\.\d{2})?)\s*(?:has been charged|charged to|was charged)/i)
+               || text.match(/total charged[:\s]+\$(\d+(?:\.\d{2})?)/i);
+  if (amtMatch) details.push('Amount: $' + amtMatch[1]);
+
+  // Card used — "card ending in 4321"
+  var cardMatch = text.match(/card\s+ending\s+(?:in\s+)?(\d{4})/i);
+  if (cardMatch) details.push('Card: ···· ' + cardMatch[1]);
+
+  // Plan name on upgrade/downgrade — "Business upgrade confirmed" or "upgraded to Business"
+  var planMatch = text.match(/(?:upgraded?\s+to|downgraded?\s+to|your\s+(\w+)\s+account\s+is\s+(?:back|now))/i);
+  if (!planMatch) planMatch = text.match(/your\s+(\w+)\s+account\s+is\s+(?:back|now)/i);
+  if (planMatch && planMatch[1] && /(team|business|enterprise|individual)/i.test(planMatch[1])) {
+    details.push('Plan: ' + planMatch[1].charAt(0).toUpperCase() + planMatch[1].slice(1));
+  }
+
+  var detailHtml = details.length
+    ? '<div class="receipt-note" style="margin-top:4px;font-size:12px;color:#374151;">' + details.join(' &nbsp;&middot;&nbsp; ') + '</div>'
+    : '';
 
   var card = document.createElement('div');
   card.className = 'receipt-card';
@@ -636,8 +899,26 @@ function buildReceiptCard(text) {
     '<div class="receipt-icon">&#10003;</div>' +
     '<div class="receipt-body">' +
       '<div class="receipt-title">' + title + '</div>' +
-      (orderRef ? '<div class="receipt-ref">' + orderRef + '</div>' : '') +
+      '<div class="receipt-ref">' + orderRef + '</div>' +
+      detailHtml +
       '<div class="receipt-note">Confirmation sent to your email on file</div>' +
+    '</div>';
+  return card;
+}
+
+// ── Escalation handoff card ───────────────────────────────────────────────
+
+function buildEscalationCard(text) {
+  // Only called when __ESCALATION__ token was present in the agent response.
+  if (!text) return null;
+  var card = document.createElement('div');
+  card.className = 'escalation-card';
+  card.innerHTML =
+    '<div class="escalation-icon">&#128222;</div>' +
+    '<div>' +
+      '<div class="escalation-title">Connecting to Support Team</div>' +
+      '<div class="escalation-eta">Estimated wait time: under 5 minutes</div>' +
+      '<div class="escalation-note">We\'ve shared your account context — no need to repeat it.</div>' +
     '</div>';
   return card;
 }
@@ -820,9 +1101,14 @@ function addBubble(role, text) {
   var wrapEl = addBubbleNode(role, text, null);
   if (role === 'agent' && text) {
     var bubble = wrapEl.querySelector('.bubble');
-    var card   = buildReceiptCard(text);
-    if (card && bubble) bubble.appendChild(card);
-    if (!isWaiting) showContextChips(text, wrapEl);
+    var receiptCard = buildReceiptCard(text);
+    if (receiptCard && bubble) bubble.appendChild(receiptCard);
+    var hasEsc = text.indexOf('__ESCALATION__') !== -1;
+    if (hasEsc) {
+      var escCard = buildEscalationCard(text);
+      if (escCard && bubble) bubble.appendChild(escCard);
+    }
+    if (!isWaiting && !hasEsc) showContextChips(text, wrapEl);
   }
   return wrapEl;
 }
@@ -918,7 +1204,16 @@ function removeTyping(id) {
 
 function hideWelcome() {
   var w = document.getElementById('welcome');
-  if (w) w.remove();
+  if (!w) return;
+  var header = document.createElement('div');
+  header.className = 'session-header';
+  header.innerHTML =
+    '<div class="session-header-avatar">AI</div>' +
+    '<div class="session-header-text">' +
+      '<div class="session-header-name">Orbit AI</div>' +
+      '<div class="session-header-sub">Gemini 2.5 Flash &middot; Google ADK &middot; Responses are AI-generated</div>' +
+    '</div>';
+  w.replaceWith(header);
 }
 
 function scrollBottom() {
@@ -947,7 +1242,7 @@ var micListening   = false;
 
 function toggleMic() {
   if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    addBubble('agent', "Speech recognition isn’t supported in this browser. Try Chrome.");
+    addBubble('agent', "Speech recognition isn't supported in this browser. Try Chrome.");
     return;
   }
   if (micListening) {
@@ -994,6 +1289,24 @@ document.getElementById('userInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 document.getElementById('userInput').addEventListener('input', function() { autoResize(this); });
+
+// ── Reset Demo ────────────────────────────────────────────────────────────
+async function resetDemo() {
+  if (!confirm('Reset the demo? This will clear the conversation and restore all accounts to Day 1.')) return;
+  var btn = document.getElementById('resetBtn');
+  btn.textContent = 'Resetting…';
+  btn.disabled = true;
+  clearSessionStorage();
+  try {
+    var res = await fetch(BASE_URL + '/reset-db', { method: 'POST' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    setTimeout(function() { window.location.reload(); }, 400);
+  } catch(e) {
+    btn.textContent = '✗ Reset failed';
+    btn.disabled = false;
+    console.error('Reset failed:', e);
+  }
+}
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 initSession();

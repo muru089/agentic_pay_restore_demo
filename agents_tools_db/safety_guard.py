@@ -21,6 +21,7 @@ chat text is intentional (see CLAUDE.md card payment flow exception).
 
 import os
 import requests
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from .log_setup import get_logger
 
@@ -43,14 +44,20 @@ _ENDPOINT = os.getenv("AZURE_CONTENT_SAFETY_ENDPOINT", "").rstrip("/")
 import re
 _SSN_RE = re.compile(r'\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b')
 
-# Pre-filter: Prompt Shield false-positive bypass for clear account service messages.
-# A message with a 5-digit account ID + standard billing/restore vocabulary is a
-# legitimate customer request — not a jailbreak — and should not go to Azure.
+# Pre-filter: Prompt Shield false-positive bypass for unambiguous account-service messages.
+# Narrow criteria: 5-digit account ID + Orbit-specific service term + NO injection signals.
+# An injection payload that adds a 5-digit number cannot also lack injection keywords.
 _ACCT_ID_RE = re.compile(r'\b\d{5}\b')
 _ACCT_ACTIONS_RE = re.compile(
-    r'\b(restore|restored|suspended|suspension|waive|waiver|payment|pay|billing|upgrade|'
-    r'downgrade|account|balance|fee|card|reactivate|renew|cancel|data|project|access|'
-    r'checkout|checkout|check\s+out|get\s+back|back\s+online)\b',
+    r'\b(restore|restored|suspended|suspension|waive|waiver|reactivate|'
+    r'upgrade|downgrade|autopay|late\s+fee)\b',
+    re.IGNORECASE
+)
+_INJECTION_SIGNALS_RE = re.compile(
+    r'\b(ignore|forget|disregard|override|pretend|roleplay|system\s+prompt|'
+    r'jailbreak|previous\s+instructions?|output\s+your|reveal\s+your|bypass|'
+    r'act\s+as|you\s+are\s+now|from\s+now\s+on|new\s+persona|developer\s+mode|'
+    r'tell\s+me\s+your|what\s+are\s+your\s+instructions?)\b',
     re.IGNORECASE
 )
 
@@ -67,7 +74,9 @@ def _t2a_prompt_shield(text: str) -> bool:
         return False
     # Skip for clear customer account service messages — Prompt Shield misclassifies
     # phrases like "restore it and waive the fee" as potential injection.
-    if _ACCT_ID_RE.search(text) and _ACCT_ACTIONS_RE.search(text):
+    if (_ACCT_ID_RE.search(text)
+            and _ACCT_ACTIONS_RE.search(text)
+            and not _INJECTION_SIGNALS_RE.search(text)):
         return False
     try:
         resp = requests.post(
@@ -146,8 +155,11 @@ def _t2b_text_analyze(text: str) -> tuple[bool, str]:
 
 def check(message: str) -> tuple[str, str | None]:
     """
-    Run T1 → T2a → T2b checks in order.
+    Run T1 → T2a+T2b (parallel) checks.
     Returns ("pass", None) or ("block", customer_response).
+
+    T1 (regex) runs first synchronously — ~0ms, no I/O.
+    T2a and T2b fire in parallel via ThreadPoolExecutor — saves ~80ms vs serial.
 
     Response strings use minimal disclosure:
     - PII: explains the secure alternative (genuinely helpful)
@@ -163,17 +175,21 @@ def check(message: str) -> tuple[str, str | None]:
             "Please use your 5-digit account ID and I'll pull up your account.",
         )
 
-    # ── T2a: Prompt Shield (injection / jailbreak) ────────────────────
-    if _t2a_prompt_shield(message):
+    # ── T2a + T2b: run in parallel ────────────────────────────────────
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        fut_shield  = pool.submit(_t2a_prompt_shield, message)
+        fut_analyze = pool.submit(_t2b_text_analyze,  message)
+        shield_blocked           = fut_shield.result()
+        analyze_blocked, category = fut_analyze.result()
+
+    if shield_blocked:
         _log.info(f"BLOCKED  rule=T2a/PromptShield  preview={message[:60]!r}")
         return (
             "block",
             "I'm here to help with your account — what can I assist you with today?",
         )
 
-    # ── T2b: Text Analyze (toxicity / hate / violence) ────────────────
-    is_blocked, category = _t2b_text_analyze(message)
-    if is_blocked:
+    if analyze_blocked:
         if category == "Violence":
             return (
                 "block",

@@ -11,8 +11,37 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: #f7f8fc;
     color: #1a1a2e;
-    padding: 40px 32px 80px;
+    padding: 0 0 80px;
   }
+  .arch-nav {
+    background: #fff; border-bottom: 1px solid #e5e7eb;
+    padding: 0 32px; height: 56px;
+    display: flex; align-items: center; gap: 0;
+    margin-bottom: 40px;
+  }
+  .arch-nav-logo {
+    font-size: 20px; font-weight: 700; color: #5b4cf5;
+    text-decoration: none; margin-right: 24px; letter-spacing: -0.5px;
+  }
+  .arch-nav-logo span { color: #1a1a2e; }
+  .arch-nav-label {
+    font-size: 13px; color: #6b7280;
+    border-left: 1px solid #e5e7eb; padding-left: 16px;
+    flex: 1;
+  }
+  .arch-nav-links {
+    display: flex; gap: 20px; align-items: center;
+  }
+  .arch-nav-links a {
+    font-size: 13px; color: #6b7280; text-decoration: none;
+  }
+  .arch-nav-links a:hover { color: #5b4cf5; }
+  .arch-nav-links .nav-btn {
+    background: #5b4cf5; color: #fff; font-size: 13px; font-weight: 600;
+    padding: 6px 16px; border-radius: 8px; text-decoration: none;
+  }
+  .arch-nav-links .nav-btn:hover { background: #4a3dd4; color: #fff; }
+  .arch-body { padding: 0 32px; }
   h1 {
     font-size: 28px; font-weight: 700; color: #5b4cf5;
     margin-bottom: 6px; letter-spacing: -0.5px;
@@ -55,6 +84,16 @@
 </head>
 <body>
 
+<nav class="arch-nav">
+  <a class="arch-nav-logo" href="../orbit_chat.html">Orbit<span>.</span></a>
+  <span class="arch-nav-label">Demo Architecture</span>
+  <div class="arch-nav-links">
+    <a href="../knowledge_base/html/index.html" target="_blank">Help Center</a>
+    <a class="nav-btn" href="../orbit_chat.html" target="_blank">✦ Chat with Orbit AI</a>
+  </div>
+</nav>
+
+<div class="arch-body">
 <h1>Orbit Demo — Architecture</h1>
 <p class="subtitle">Multi-agent Google ADK · 3-tier orchestration · gemini-2.5-flash · Safety pre-flight · RAG knowledge base · Diagnostic Supervisor</p>
 
@@ -100,6 +139,7 @@ graph TD
     T0t["💾 T0_GetSessionState / T0_SetSessionState\npersistent restore state · 15 fields\nread at start of every SUSPENDED turn\nwrite after each completed step"]
     T1t["🔑 T1_GetAccount\nauth lookup on every turn\nreturns: name · plan · status\ncard info · suspension_date"]
     T10t["📚 T10_SearchKnowledge  (RAG)\nquery embed: gemini-embedding-2\nvector store: ChromaDB PersistentClient\ncosine search · top-3 chunks\nconfidence threshold: 0.75\n[LOW_CONFIDENCE] → graceful fallback"]
+    T13t["⚙️ T13_UpdateAutoPay\nenable or disable AutoPay\nnon-destructive · no consent gate\nresumes restore flow after change\naffects T4 waiver Rule B at pay time"]
   end
 
   %% ── Supervisor ───────────────────────────────────────────────────────
@@ -167,6 +207,7 @@ graph TD
   ROOT -->|"every turn"| T1t
   ROOT -->|"every SUSPENDED turn"| T0t
   ROOT -->|"FAQ · policy"| T10t
+  ROOT -->|"autopay toggle"| T13t
 
   ROOT -->|"billing check (∥) or\nactive-account payment"| DA2
   ROOT -->|"payment + restore"| DA3
@@ -198,6 +239,7 @@ graph TD
   class T10t ragtool
   class T1t authtool
   class T0t authtool
+  class T13t authtool
   class T1r,T2a,T2b safety
   class BLOCKED block
   </div>
@@ -282,7 +324,7 @@ graph TD
     <rect x="298" y="312" width="364" height="80" rx="8" fill="#ede9fe" stroke="#5b4cf5" stroke-width="1.5"/>
     <text x="480" y="333" text-anchor="middle" fill="#1a1a2e" font-size="13" font-weight="700"><tspan font-size="18">🟣</tspan><tspan>  root_agent  (Uber  ·  gemini-2.5-flash)</tspan></text>
     <text x="480" y="350" text-anchor="middle" fill="#3730a3" font-size="10">T0 · T1 · T10  direct tools  ·  Layer 1 input guardrail  ·  Layer 3 output guardrail</text>
-    <text x="480" y="366" text-anchor="middle" fill="#3730a3" font-size="10">auth  ·  intent routing  ·  ROW 1–7 session-state dispatch</text>
+    <text x="480" y="366" text-anchor="middle" fill="#3730a3" font-size="10">auth  ·  intent routing  ·  STEP 1–7 session-state dispatch</text>
     <text x="480" y="382" text-anchor="middle" fill="#7c3aed" font-size="9">persistent session state (T0) tracks restore progress across turns</text>
 
     <line x1="480" y1="392" x2="480" y2="420" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#d2-a)"/>
@@ -380,7 +422,7 @@ flowchart LR
 
   subgraph OFFLINE ["📥  Offline — rag_seed.py  (nightly / on-demand)"]
     direction TB
-    HTML["7 HTML\nHelp Center pages"]
+    HTML["8 HTML\nHelp Center pages"]
     BS["BeautifulSoup\nstrip tags → plain text"]
     CHUNK["Sliding window chunker\n2000 chars · 200 overlap\n→ 23 chunks"]
     EMBED_O["gemini-embedding-2\nEmbed each chunk"]
@@ -636,7 +678,7 @@ graph TD
 
   USER --> ROOT
 
-  subgraph ROW [" "]
+  subgraph STEPS [" "]
     direction LR
 
     subgraph SAB ["SA-Billing Supervisor"]
@@ -692,7 +734,7 @@ graph TD
   ROOT -->|"restore/plan change"| SAFn
   ROOT -->|"health complaint"| SADn
 
-  style ROW fill:none,stroke:none
+  style STEPS fill:none,stroke:none
 
   classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
   classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
@@ -715,6 +757,165 @@ graph TD
     </div>
   </div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- APPENDIX B — Advanced RAG: Hybrid Search + Re-ranking (talking point)  -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div style="margin-top: 16px;">
+  <button
+    id="appendix-b-toggle"
+    onclick="toggleAppendixB()"
+    style="
+      display: flex; align-items: center; gap: 10px;
+      background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 10px;
+      padding: 12px 20px; cursor: pointer; font-size: 14px; font-weight: 600;
+      color: #374151; width: 100%; text-align: left;
+    "
+  >
+    <span id="appendix-b-arrow" style="font-size: 16px; transition: transform 0.2s;">&#9658;</span>
+    <span>Appendix B &mdash; Advanced RAG: Hybrid Search + Re-ranking</span>
+    <span style="font-size: 12px; font-weight: 400; color: #9ca3af; margin-left: auto;">Click to expand</span>
+  </button>
+
+  <div id="appendix-b-content" style="display: none; margin-top: 16px;">
+    <div class="section">
+      <h2>B &middot; Advanced RAG: Hybrid Search + Re-ranking &nbsp;<span style="font-size:13px;font-weight:400;color:#6b7280;">(talking point &mdash; architecture extension)</span></h2>
+
+      <p class="desc">
+        T10 uses pure vector search today &mdash; right for the current 8-page policy corpus.
+        In production, where the knowledge base includes product catalogs, error code libraries, and
+        rule tables, vector search breaks on exact identifiers. The two-stage pipeline below is
+        the production upgrade path, implemented in my current sales role for phone model and
+        promo code lookups.
+      </p>
+
+      <!-- ── Pipeline diagram ───────────────────────────────────────────── -->
+      <div class="mermaid-pending" id="appendix-b-mermaid">
+graph LR
+    CUST(["Customer Query"]) --> ROOT["root_agent"]
+    ROOT --> GATE{"Identifier\nin query?"}
+
+    GATE -->|"No"| CV["ChromaDB\ncosine similarity"]
+    CV --> V3["Top 3 chunks"]
+    V3 --> LLM["LLM generates answer"]
+
+    GATE -->|"Yes - code / rule / SKU"| PAR["Parallel Retrieval"]
+    PAR --> BM25["BM25\nrank_bm25\nexact token match"]
+    PAR --> VEC["ChromaDB\nvector cosine"]
+    BM25 --> RRF["RRF Merge"]
+    VEC --> RRF
+    RRF --> RERANK["Cross-Encoder\nReranker\nCohere API"]
+    RERANK --> H3["Top 3 chunks"]
+    H3 --> LLM
+      </div>
+
+      <div class="legend" style="margin-top:12px;">
+        <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>Basic vector — ~0.2s latency</span>
+        <span class="chip"><span class="dot" style="background:#ea580c;"></span>Hybrid + re-rank — ~1.5s latency</span>
+        <span class="chip"><span class="dot" style="background:#16a34a;"></span>Both paths feed the same LLM</span>
+      </div>
+
+      <!-- ── Why vector fails ───────────────────────────────────────────── -->
+      <h3 style="font-size:15px;font-weight:700;color:#1a1a2e;margin:24px 0 8px;">Why Vector Fails on Exact Identifiers</h3>
+      <p style="font-size:14px;color:#374151;line-height:1.7;margin-bottom:16px;">
+        Plan codes like <code>P002</code> and <code>P003</code> sit inside sentences with nearly
+        identical surrounding words &mdash; "monthly fee," "team plan," "penalty." Their embeddings
+        land close together, so a query for <em>"P002 late fee"</em> can return the P003 document.
+        The same failure applies to error codes, SKUs, promo codes, and rule labels: arbitrary
+        tokens with no semantic meaning get diluted by context. BM25 finds them exactly;
+        vector search cannot.
+      </p>
+
+      <!-- ── Pipeline mechanics ─────────────────────────────────────────── -->
+      <h3 style="font-size:15px;font-weight:700;color:#1a1a2e;margin:20px 0 8px;">Stage 1 &mdash; Hybrid Search (BM25 + Vector merged via RRF)</h3>
+      <ul style="font-size:14px;color:#374151;line-height:2;padding-left:20px;margin-bottom:16px;">
+        <li><strong>BM25</strong> &mdash; exact token overlap, with saturation (caps keyword repetition) and length normalisation (short dense docs score fairly against long ones). Implemented via <code>rank_bm25</code> — pure Python, no new service.</li>
+        <li><strong>Vector</strong> &mdash; existing ChromaDB cosine search. Handles synonyms and vague intent ("how do I get my account back").</li>
+        <li><strong>RRF Merge</strong> &mdash; combines both ranked lists. A document at the top of both gets boosted to #1. Parameter-free — no tuning required.</li>
+      </ul>
+
+      <h3 style="font-size:15px;font-weight:700;color:#1a1a2e;margin:20px 0 8px;">Stage 2 &mdash; Re-ranking (Cross-Encoder)</h3>
+      <ul style="font-size:14px;color:#374151;line-height:2;padding-left:20px;margin-bottom:20px;">
+        <li><strong>Input</strong> &mdash; top 20–50 candidates from Stage 1. Stage 1 casts wide (recall); Stage 2 cuts hard (precision).</li>
+        <li><strong>Cross-Encoder</strong> &mdash; reads query and document together as a pair. Bi-encoders embed them independently; cross-encoders see both simultaneously — substantially more accurate at relevance scoring.</li>
+        <li><strong>Output</strong> &mdash; top 3–5 re-ranked chunks to the LLM. Filters out irrelevant context before it reaches the model — a hallucination shield.</li>
+        <li><strong>Implementation</strong> &mdash; Cohere Rerank API (~$0.001/call) or self-hosted <code>cross-encoder/ms-marco-MiniLM</code>.</li>
+      </ul>
+
+      <!-- ── Architecture: 2 tools not 2 agents ────────────────────────── -->
+      <h3 style="font-size:15px;font-weight:700;color:#1a1a2e;margin:20px 0 8px;">Routing Architecture &mdash; 2 Tools Under root_agent, Not 2 Agents</h3>
+      <p style="font-size:14px;color:#374151;line-height:1.7;margin-bottom:12px;">
+        Both paths are tools wired directly to root_agent &mdash; not sub-agents. Sub-agents add
+        a full LLM turn of overhead; these are retrieval calls that run in milliseconds and return
+        structured data. No reasoning layer needed between root_agent and the retrieval.
+      </p>
+      <p style="font-size:14px;color:#374151;line-height:1.7;margin-bottom:12px;">
+        The routing decision is enforced in root_agent's instruction, not left to the LLM's
+        free choice. Letting the model pick between two tools leads to <strong>lazy tool
+        selection</strong> &mdash; it defaults to the faster tool even when the precise one
+        is needed. Instead, the instruction contains an explicit rule:
+        <em>"If the query contains a plan code, rule label, error code, or SKU &rarr;
+        call <code>T10_HybridSearch</code>. Otherwise &rarr; call
+        <code>T10_SearchKnowledge</code>."</em>
+        The LLM follows a deterministic rule; it does not make a judgment call about tool preference.
+      </p>
+
+      <!-- ── Routing table ──────────────────────────────────────────────── -->
+      <table style="font-size:13px;color:#374151;border-collapse:collapse;width:100%;margin-bottom:8px;">
+        <thead>
+          <tr style="background:#f3f4f6;">
+            <th style="padding:10px 14px;text-align:left;border:1px solid #e5e7eb;font-weight:700;">Query</th>
+            <th style="padding:10px 14px;text-align:left;border:1px solid #e5e7eb;font-weight:700;">Path</th>
+            <th style="padding:10px 14px;text-align:left;border:1px solid #e5e7eb;font-weight:700;">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">"What is the late fee waiver policy?"</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;white-space:nowrap;">T10_SearchKnowledge</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">Intent-based, no identifier</td>
+          </tr>
+          <tr style="background:#f9fafb;">
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">"What does Rule C say about waivers?"</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;white-space:nowrap;">T10_HybridSearch</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">Rule label — vector blurs A/B/C</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">"P002 plan storage limit"</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;white-space:nowrap;">T10_HybridSearch</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">Plan code — vector returns nearest plan, not exact plan</td>
+          </tr>
+          <tr style="background:#f9fafb;">
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">"BGW-320 firmware error"</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;white-space:nowrap;">T10_HybridSearch</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">Model number — vector treats BGW-320 and BGW-210 as equivalent</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div>
+  </div>
+</div>
+
+
+<script>
+  function toggleAppendixB() {
+    const content = document.getElementById('appendix-b-content');
+    const arrow   = document.getElementById('appendix-b-arrow');
+    const btn     = document.getElementById('appendix-b-toggle');
+    const hidden  = content.style.display === 'none';
+    content.style.display = hidden ? 'block' : 'none';
+    arrow.style.transform = hidden ? 'rotate(90deg)' : '';
+    btn.querySelector('span:last-child').textContent = hidden ? 'Click to collapse' : 'Click to expand';
+    if (hidden) {
+      const el = document.getElementById('appendix-b-mermaid');
+      if (el && !el.classList.contains('mermaid')) {
+        el.classList.add('mermaid');
+        setTimeout(() => { mermaid.run({ nodes: [el] }); }, 50);
+      }
+    }
+  }
+</script>
 
 <script>
   function toggleAppendix() {
@@ -751,5 +952,6 @@ graph TD
   });
 </script>
 
+</div><!-- /.arch-body -->
 </body>
 </html>
