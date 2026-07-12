@@ -1,0 +1,909 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Orbit Demo — Architecture</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f7f8fc;
+    color: #1a1a2e;
+    padding: 0 0 80px;
+  }
+  .arch-nav {
+    background: #fff; border-bottom: 1px solid #e5e7eb;
+    padding: 0 32px; height: 56px;
+    display: flex; align-items: center; gap: 0;
+    margin-bottom: 40px;
+  }
+  .arch-nav-logo {
+    font-size: 20px; font-weight: 700; color: #5b4cf5;
+    text-decoration: none; margin-right: 24px; letter-spacing: -0.5px;
+  }
+  .arch-nav-logo span { color: #1a1a2e; }
+  .arch-nav-label {
+    font-size: 13px; color: #6b7280;
+    border-left: 1px solid #e5e7eb; padding-left: 16px;
+    flex: 1;
+  }
+  .arch-nav-links {
+    display: flex; gap: 20px; align-items: center;
+  }
+  .arch-nav-links a {
+    font-size: 13px; color: #6b7280; text-decoration: none;
+  }
+  .arch-nav-links a:hover { color: #5b4cf5; }
+  .arch-nav-links .nav-btn {
+    background: #5b4cf5; color: #fff; font-size: 13px; font-weight: 600;
+    padding: 6px 16px; border-radius: 8px; text-decoration: none;
+  }
+  .arch-nav-links .nav-btn:hover { background: #4a3dd4; color: #fff; }
+  .arch-body { padding: 0 32px; }
+  h1 {
+    font-size: 28px; font-weight: 700; color: #5b4cf5;
+    margin-bottom: 6px; letter-spacing: -0.5px;
+  }
+  .subtitle { font-size: 14px; color: #6b7280; margin-bottom: 48px; }
+  .section {
+    background: #fff; border-radius: 16px;
+    box-shadow: 0 2px 16px rgba(91,76,245,0.08);
+    border: 1px solid #ececf3;
+    padding: 32px 40px 36px;
+    margin-bottom: 32px;
+    overflow: hidden;
+  }
+  .section h2 {
+    font-size: 18px; font-weight: 700; color: #1a1a2e;
+    margin-bottom: 4px;
+  }
+  .section .desc {
+    font-size: 13px; color: #6b7280; margin-bottom: 24px; line-height: 1.6;
+  }
+  .mermaid { overflow-x: auto; }
+  .mermaid svg { max-width: 100% !important; height: auto !important; }
+
+  /* Legend chips */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin-top: 20px; padding-top: 20px;
+    border-top: 1px solid #ececf3;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: #374151;
+    background: #f3f4f6; border-radius: 20px;
+    padding: 4px 12px;
+  }
+  .dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<nav class="arch-nav">
+  <a class="arch-nav-logo" href="../orbit_chat.html">Orbit<span>.</span></a>
+  <span class="arch-nav-label">Demo Architecture</span>
+  <div class="arch-nav-links">
+    <a href="../knowledge_base/html/index.html" target="_blank">Help Center</a>
+    <a class="nav-btn" href="../orbit_chat.html" target="_blank">✦ Chat with Orbit AI</a>
+  </div>
+</nav>
+
+<div class="arch-body">
+<h1>Orbit Demo — Architecture</h1>
+<p class="subtitle">Multi-agent Google ADK · 3-tier orchestration · gemini-2.5-flash · Safety pre-flight · RAG knowledge base · Diagnostic Supervisor</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIAGRAM 1 — Full agent architecture                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>1 · Full Agent Architecture</h2>
+  <p class="desc">
+    3-tier structure: <strong>Uber</strong> (root_agent) owns auth, safety, routing, and restore sequencing.
+    For suspended account flows, root_agent tracks progress in a <strong>persistent session layer</strong> — each completed step
+    is recorded so the agent resumes accurately across conversation turns without re-reading the conversation history.
+    <strong>Supervisor</strong> (SA1_DiagnosticSupervisor) handles ambiguous multi-dimensional health complaints by fanning out DA1, DA5_StorageAgent, and DA6_IntegrationAgent in parallel, then synthesising urgency to surface the highest-impact finding.
+    Single-intent diagnostic queries (storage only / integration only) bypass SA1 and route directly from root.
+    <strong>Domain / Squad</strong> agents own tool execution and enforce their own prerequisite gates.
+    DA4 is shared — called by root_agent for both active-account plan changes and post-restore upgrades.
+    DA1 is also shared — called by root_agent (fresh start) and by SA1 (diagnostic fan-out).
+    DA2 now handles two distinct billing paths: (1) the suspended-account restore path (balance preview → payment + fee waiver check) and (2) the active-account billing path (monthly invoice payment, no fee waiver, no restore — DA2 sends its own T8 receipt).
+  </p>
+  <div class="mermaid">
+graph TD
+
+  %% ── Customer ─────────────────────────────────────────────────────────
+  USER(["👤 Customer message"])
+
+  %% ── Safety pre-flight ────────────────────────────────────────────────
+  subgraph SAFETY ["🛡️ Safety Pre-flight  (before_agent_callback)  ~80ms"]
+    direction TB
+    T1r["T1 · SSN regex  ~0ms"]
+    T2a["T2a · Azure Prompt Shield\ninjection / jailbreak  ~80ms"]
+    T2b["T2b · Azure Text Analyze\ntoxicity / hate / violence  ~80ms"]
+    T1r --> T2a & T2b
+  end
+
+  BLOCKED(["🚫 Blocked response"])
+
+  %% ── Uber root_agent (bare node — no subgraph to avoid layout drift) ──
+  ROOT["🟣 root_agent  (Uber — gemini-2.5-flash)\nauth · routing · restore sequencing (persistent state)\nLayer 1 input guardrail · Layer 3 output guardrail"]
+
+  %% ── root_agent direct tools ──────────────────────────────────────────
+  subgraph DTOOLS ["root_agent · Direct Tools"]
+    direction LR
+    T0t["💾 T0_GetSessionState / T0_SetSessionState\npersistent restore state · 15 fields\nread at start of every SUSPENDED turn\nwrite after each completed step"]
+    T1t["🔑 T1_GetAccount\nauth lookup on every turn\nreturns: name · plan · status\ncard info · suspension_date"]
+    T10t["📚 T10_SearchKnowledge  (RAG)\nquery embed: gemini-embedding-2\nvector store: ChromaDB PersistentClient\ncosine search · top-3 chunks\nconfidence threshold: 0.75\n[LOW_CONFIDENCE] → graceful fallback"]
+  end
+
+  %% ── Supervisor ───────────────────────────────────────────────────────
+  SA1["🔶 SA1_DiagnosticSupervisor  (gemini-2.5-flash)\nambiguous multi-dim complaint → ∥ fan-out\nDA1 · DA5_Storage · DA6_Integration\nsynthesise urgency → route to highest-impact finding"]
+
+  %% ── Domain / Squad agents — restore path ─────────────────────────────
+  subgraph DA1B ["DA1 · AccountAgent  ★ Shared"]
+    direction TB
+    DA1["DA1_AccountAgent"]
+    T2["T2_CheckDataRetention"]
+    DA1 --> T2
+  end
+
+  subgraph DA2B ["DA2 · BillingAgent"]
+    direction TB
+    DA2["DA2_BillingAgent\nconsent gate · balance gate"]
+    T7["T7_GetBalance"]
+    T4["T4_CheckFeeWaiver"]
+    T3["T3_ProcessPayment"]
+    T8c["T8_SendReceipt\n(active billing)"]
+    DA2 -->|"preview"| T7
+    T7 -->|"seq"| T4
+    DA2 -->|"payment"| T4
+    T4 -->|"then charge"| T3
+    T3 -->|"active billing"| T8c
+  end
+
+  subgraph DA3B ["DA3 · RestoreAgent  Squad"]
+    direction TB
+    DA3["DA3_RestoreAgent\nrequires: payment + SUSPENDED"]
+    T5["T5_RestoreAccount"]
+    T8a["T8_SendReceipt"]
+    DA3 --> T5 -->|"seq"| T8a
+  end
+
+  subgraph DA4B ["DA4 · PlanAgent  Squad  ★ Shared"]
+    direction TB
+    DA4["DA4_PlanAgent\nvalidate → execute · requires: ACTIVE"]
+    T9["T9_ValidatePlanChange"]
+    T6["T6_ChangePlan"]
+    T8b["T8_SendReceipt"]
+    DA4 --> T9 -->|"eligible · seq"| T6 -->|"seq"| T8b
+  end
+
+  %% ── Domain agents — diagnostic path ──────────────────────────────────
+  subgraph DA_STB ["DA5 · StorageAgent"]
+    direction TB
+    DA5["DA5_StorageAgent"]
+    T11["T11_CheckStorage\nused_gb · plan_limit_gb\nnear_limit (threshold 90%)\nheadroom_gb"]
+    DA5 --> T11
+  end
+
+  subgraph DA_IGB ["DA6 · IntegrationAgent"]
+    direction TB
+    DA6["DA6_IntegrationAgent"]
+    T12["T12_CheckIntegration\nintegration_name · status\nlast_sync · auth_failures\naction_required flag"]
+    DA6 --> T12
+  end
+
+  %% ── Flow ─────────────────────────────────────────────────────────────
+  USER --> SAFETY
+  SAFETY -->|"pass"| ROOT
+  SAFETY -->|"block"| BLOCKED
+
+  ROOT -->|"every turn"| T1t
+  ROOT -->|"every SUSPENDED turn"| T0t
+  ROOT -->|"FAQ · policy"| T10t
+
+  ROOT -->|"billing check (∥) or\nactive-account payment"| DA2
+  ROOT -->|"payment + restore"| DA3
+  ROOT -->|"plan change"| DA4
+  ROOT -->|"ambiguous\nhealth complaint"| SA1
+  ROOT -->|"single-intent\nstorage query"| DA5
+  ROOT -->|"single-intent\nintegration query"| DA6
+
+  SA1 -->|"∥ parallel"| DA1
+  SA1 -->|"∥ parallel"| DA5
+  SA1 -->|"∥ parallel"| DA6
+
+  ROOT -->|"data + billing check (∥)"| DA1
+
+  %% ── Styles ───────────────────────────────────────────────────────────
+  classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
+  classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
+  classDef domain     fill:#dcfce7,stroke:#16a34a,color:#1a1a2e,font-weight:600
+  classDef tool       fill:#f3f4f6,stroke:#9ca3af,color:#374151,font-size:12px
+  classDef ragtool    fill:#dbeafe,stroke:#2563eb,color:#1a1a2e,font-size:12px
+  classDef authtool   fill:#faf5ff,stroke:#7c3aed,color:#1a1a2e,font-size:12px
+  classDef safety     fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
+  classDef block      fill:#fee2e2,stroke:#dc2626,color:#991b1b
+
+  class ROOT uber
+  class SA1 supervisor
+  class DA1,DA2,DA3,DA4,DA5,DA6 domain
+  class T2,T3,T4,T5,T6,T7,T8a,T8b,T8c,T9,T11,T12 tool
+  class T10t ragtool
+  class T1t authtool
+  class T0t authtool
+  class T1r,T2a,T2b safety
+  class BLOCKED block
+  </div>
+
+  <div class="legend">
+    <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>Uber (root_agent)</span>
+    <span class="chip"><span class="dot" style="background:#ea580c;"></span>Supervisor (SA1 — parallel fan-out + synthesis)</span>
+    <span class="chip"><span class="dot" style="background:#16a34a;"></span>Domain / Squad Agent</span>
+    <span class="chip"><span class="dot" style="background:#7c3aed;"></span>Auth tool (T1)</span>
+    <span class="chip"><span class="dot" style="background:#2563eb;"></span>RAG tool (T10)</span>
+    <span class="chip"><span class="dot" style="background:#ca8a04;"></span>Safety pre-flight</span>
+    <span class="chip"><span class="dot" style="background:#9ca3af;"></span>Tool (DB / API)</span>
+    <span class="chip"><span class="dot" style="background:#dc2626;"></span>Blocked</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIAGRAM 2 — Demo Environment                                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>2 · Demo Environment</h2>
+  <p class="desc">
+    All compute runs on local infrastructure — no cloud servers to provision or deploy.
+    The only external dependencies are two API keys: Google AI Studio (Gemini models + embeddings)
+    and Microsoft Azure Cognitive Services (Content Safety).
+    SQLite and ChromaDB are embedded libraries with no server process.
+  </p>
+
+  <!-- Custom SVG architecture diagram — palette matched to Diagrams 1/3/4 -->
+  <div style="overflow-x:auto;padding:8px 0">
+  <svg viewBox="0 0 980 590" xmlns="http://www.w3.org/2000/svg"
+       font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif"
+       style="width:100%;max-width:980px;display:block;margin:0 auto">
+    <defs>
+      <marker id="d2-a" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto">
+        <path d="M0,0 L0,7 L8,3.5z" fill="#9ca3af"/>
+      </marker>
+      <marker id="d2-r" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto">
+        <path d="M0,0 L0,7 L8,3.5z" fill="#dc2626"/>
+      </marker>
+      <marker id="d2-g" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto">
+        <path d="M0,0 L0,7 L8,3.5z" fill="#16a34a"/>
+      </marker>
+      <marker id="d2-b" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto">
+        <path d="M0,0 L0,7 L8,3.5z" fill="#2563eb"/>
+      </marker>
+    </defs>
+
+    <!-- ─── LOCAL COMPUTE BOUNDARY ─────────────────────────────────────── -->
+    <rect x="182" y="90" width="596" height="490" rx="14"
+          fill="#fafafa" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="8 4"/>
+    <rect x="196" y="82" width="266" height="17" rx="4" fill="#e5e7eb"/>
+    <text x="329" y="94" text-anchor="middle" fill="#6b7280" font-size="10" font-weight="600"
+          letter-spacing="0.2">ADK Runtime  ·  Local Compute  ·  Python  ·  port 8000</text>
+
+    <!-- ─── CUSTOMER ──────────────────────────────────────────────────── -->
+    <rect x="394" y="16" width="172" height="46" rx="23" fill="#5b4cf5"/>
+    <text x="480" y="36" text-anchor="middle" fill="white" font-size="13" font-weight="700"><tspan font-size="18">👤</tspan><tspan>  Customer</tspan></text>
+    <text x="480" y="52" text-anchor="middle" fill="#e0d9ff" font-size="9.5">browser session</text>
+
+    <line x1="480" y1="62" x2="480" y2="104" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#d2-a)"/>
+
+    <!-- ─── BROWSER ───────────────────────────────────────────────────── -->
+    <rect x="352" y="104" width="256" height="66" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+    <text x="480" y="123" text-anchor="middle" fill="#1e3a8a" font-size="12" font-weight="700">orbit_chat.html</text>
+    <text x="480" y="139" text-anchor="middle" fill="#1d4ed8" font-size="10">Chat UI  ·  inline card form  ·  SSE streaming</text>
+    <text x="480" y="153" text-anchor="middle" fill="#3b82f6" font-size="9">connects to ADK server at port 8000</text>
+
+    <line x1="480" y1="170" x2="480" y2="208" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#d2-a)"/>
+    <text x="492" y="192" fill="#9ca3af" font-size="9.5">SSE  /run_sse</text>
+
+    <!-- ─── SAFETY GUARD ──────────────────────────────────────────────── -->
+    <rect x="320" y="208" width="320" height="68" rx="8" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+    <text x="480" y="228" text-anchor="middle" fill="#713f12" font-size="12" font-weight="700"><tspan font-size="17">🛡️</tspan><tspan>  safety_guard.py</tspan></text>
+    <text x="480" y="244" text-anchor="middle" fill="#78350f" font-size="10">before_agent_callback  ·  fires on every turn, before the LLM sees the message</text>
+    <text x="480" y="259" text-anchor="middle" fill="#78350f" font-size="10">T1 SSN regex  ·  T2a ‖ T2b Azure calls in parallel  ·  ~80ms  ·  fail-open</text>
+
+    <line x1="480" y1="276" x2="480" y2="312" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#d2-a)"/>
+
+    <!-- ─── ROOT AGENT ────────────────────────────────────────────────── -->
+    <rect x="298" y="312" width="364" height="80" rx="8" fill="#ede9fe" stroke="#5b4cf5" stroke-width="1.5"/>
+    <text x="480" y="333" text-anchor="middle" fill="#1a1a2e" font-size="13" font-weight="700"><tspan font-size="18">🟣</tspan><tspan>  root_agent  (Uber  ·  gemini-2.5-flash)</tspan></text>
+    <text x="480" y="350" text-anchor="middle" fill="#3730a3" font-size="10">T0 · T1 · T10  direct tools  ·  Layer 1 input guardrail  ·  Layer 3 output guardrail</text>
+    <text x="480" y="366" text-anchor="middle" fill="#3730a3" font-size="10">auth  ·  intent routing  ·  STEP 1–7 session-state dispatch</text>
+    <text x="480" y="382" text-anchor="middle" fill="#7c3aed" font-size="9">persistent session state (T0) tracks restore progress across turns</text>
+
+    <line x1="480" y1="392" x2="480" y2="420" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#d2-a)"/>
+
+    <!-- ─── DOMAIN + SQUAD AGENTS ─────────────────────────────────────── -->
+    <rect x="234" y="420" width="492" height="62" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="480" y="440" text-anchor="middle" fill="#1a1a2e" font-size="10.5" font-weight="700">DA1 Account  ·  DA2 Billing  ·  DA3 Restore  ·  DA4 Plan  ·  DA5 Storage  ·  DA6 Integration</text>
+    <text x="480" y="456" text-anchor="middle" fill="#14532d" font-size="10.5" font-weight="700">SA1 DiagnosticSupervisor  (∥ fan-out: DA1 ‖ DA5 ‖ DA6)</text>
+    <text x="480" y="471" text-anchor="middle" fill="#16a34a" font-size="9">gemini-2.5-flash  —  all agents</text>
+
+    <line x1="480" y1="482" x2="480" y2="502" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#d2-a)"/>
+    <text x="492" y="495" fill="#9ca3af" font-size="9">local file I/O</text>
+
+    <!-- ─── LOCAL STORAGE GROUP ───────────────────────────────────────── -->
+    <rect x="190" y="502" width="580" height="72" rx="10" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1"/>
+    <text x="480" y="516" text-anchor="middle" fill="#6b7280" font-size="9.5" font-weight="600">Local Storage  ·  file-based  ·  no server</text>
+
+    <rect x="200" y="523" width="176" height="44" rx="6" fill="white" stroke="#9ca3af" stroke-width="1"/>
+    <text x="288" y="540" text-anchor="middle" fill="#374151" font-size="11" font-weight="700"><tspan font-size="16">🗄️</tspan><tspan>  SQLite</tspan></text>
+    <text x="288" y="554" text-anchor="middle" fill="#6b7280" font-size="9">orbit.db  ·  accounts, plans, sessions</text>
+
+    <rect x="390" y="523" width="176" height="44" rx="6" fill="white" stroke="#9ca3af" stroke-width="1"/>
+    <text x="478" y="540" text-anchor="middle" fill="#374151" font-size="11" font-weight="700"><tspan font-size="16">🔍</tspan><tspan>  ChromaDB</tspan></text>
+    <text x="478" y="554" text-anchor="middle" fill="#6b7280" font-size="9">vector store  ·  ~22 chunks  ·  6 pages</text>
+
+    <rect x="580" y="523" width="182" height="44" rx="6" fill="white" stroke="#9ca3af" stroke-width="1"/>
+    <text x="671" y="540" text-anchor="middle" fill="#374151" font-size="11" font-weight="700"><tspan font-size="16">📋</tspan><tspan>  orbit.log</tspan></text>
+    <text x="671" y="554" text-anchor="middle" fill="#6b7280" font-size="9">rotating 5 MB  ·  billing · safety · events</text>
+
+    <!-- ─── AZURE (left external) ─────────────────────────────────────── -->
+    <rect x="8" y="216" width="170" height="126" rx="10" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
+    <text x="93" y="237" text-anchor="middle" fill="#991b1b" font-size="11.5" font-weight="700"><tspan font-size="17">🔒</tspan><tspan>  Azure</tspan></text>
+    <text x="93" y="253" text-anchor="middle" fill="#991b1b" font-size="11" font-weight="700">Content Safety</text>
+    <text x="93" y="273" text-anchor="middle" fill="#7f1d1d" font-size="9.5">T2a  Prompt Shield</text>
+    <text x="93" y="287" text-anchor="middle" fill="#7f1d1d" font-size="9">injection / jailbreak</text>
+    <text x="93" y="305" text-anchor="middle" fill="#7f1d1d" font-size="9.5">T2b  Text Analyze</text>
+    <text x="93" y="319" text-anchor="middle" fill="#7f1d1d" font-size="9">toxicity · hate · violence</text>
+    <text x="93" y="334" text-anchor="middle" fill="#b91c1c" font-size="8.5">fail-open  ·  T2a ‖ T2b  ·  ~80ms</text>
+
+    <line x1="178" y1="253" x2="320" y2="248" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#d2-r)"/>
+    <line x1="320" y1="260" x2="178" y2="265" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#d2-r)"/>
+    <rect x="192" y="235" width="110" height="15" rx="4" fill="#fff" opacity="0.95"/>
+    <text x="247" y="246" text-anchor="middle" fill="#dc2626" font-size="9.5" font-weight="600">API call  ↔  ~80ms</text>
+
+    <!-- ─── GOOGLE (right external) ──────────────────────────────────── -->
+    <rect x="794" y="200" width="178" height="226" rx="12" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+    <text x="883" y="220" text-anchor="middle" fill="#14532d" font-size="11" font-weight="700"><tspan font-size="15">☁️</tspan><tspan>  Google AI Studio</tspan></text>
+    <text x="883" y="234" text-anchor="middle" fill="#16a34a" font-size="9">API key  ·  API calls</text>
+
+    <rect x="803" y="244" width="161" height="68" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="884" y="264" text-anchor="middle" fill="#1a1a2e" font-size="11" font-weight="700"><tspan font-size="16">⚡</tspan><tspan>  gemini-2.5-flash</tspan></text>
+    <text x="884" y="280" text-anchor="middle" fill="#14532d" font-size="9.5">8 production agents</text>
+    <text x="884" y="295" text-anchor="middle" fill="#14532d" font-size="9">eval judge: gemini-2.5-pro</text>
+
+    <rect x="803" y="324" width="161" height="68" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="884" y="344" text-anchor="middle" fill="#1a1a2e" font-size="11" font-weight="700"><tspan font-size="16">🔢</tspan><tspan>  gemini-embedding-2</tspan></text>
+    <text x="884" y="360" text-anchor="middle" fill="#14532d" font-size="9.5">T10  online retrieval</text>
+
+    <!-- root_agent → Gemini -->
+    <line x1="662" y1="345" x2="803" y2="284" stroke="#16a34a" stroke-width="1.5" marker-end="url(#d2-g)"/>
+    <rect x="688" y="298" width="84" height="24" rx="4" fill="white" opacity="0.95"/>
+    <text x="730" y="309" text-anchor="middle" fill="#14532d" font-size="9.5" font-weight="500">API call</text>
+    <text x="730" y="319" text-anchor="middle" fill="#14532d" font-size="9">per LLM response</text>
+
+    <!-- root_agent → Embedding (T10) -->
+    <line x1="662" y1="363" x2="803" y2="363" stroke="#2563eb" stroke-width="1.5" marker-end="url(#d2-b)"/>
+    <rect x="688" y="352" width="84" height="14" rx="4" fill="white" opacity="0.95"/>
+    <text x="730" y="362" text-anchor="middle" fill="#1d4ed8" font-size="9">T10  embed query</text>
+
+    <!-- Embedding → ChromaDB dashed (offline pre-indexing) -->
+    <path d="M 884 392 C 884 446 668 490 478 502"
+          stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3"
+          fill="none" marker-end="url(#d2-a)"/>
+    <rect x="730" y="440" width="124" height="14" rx="4" fill="white" opacity="0.95"/>
+    <text x="792" y="451" text-anchor="middle" fill="#9ca3af" font-size="9">rag_seed.py  pre-indexes offline</text>
+
+  </svg>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIAGRAM 3 — RAG knowledge base                                         -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>3 · RAG Knowledge Base</h2>
+  <p class="desc">
+    Two separate pipelines: an <strong>offline indexing job</strong> (rag_seed.py) and an
+    <strong>online retrieval tool</strong> (T10_SearchKnowledge). The indexing job is re-run
+    whenever the HTML help center pages are updated — in production this would be a nightly scheduled job.
+    T10 is called by root_agent for any general policy or FAQ question that doesn't require account lookup.
+  </p>
+  <div class="mermaid">
+flowchart LR
+
+  subgraph OFFLINE ["📥  Offline — rag_seed.py  (nightly / on-demand)"]
+    direction TB
+    HTML["8 HTML\nHelp Center pages"]
+    BS["BeautifulSoup\nstrip tags → plain text"]
+    CHUNK["Sliding window chunker\n2000 chars · 200 overlap\n→ 23 chunks"]
+    EMBED_O["gemini-embedding-2\nEmbed each chunk"]
+    CHROMA[("ChromaDB\nPersistentClient\nvector store")]
+    HTML --> BS --> CHUNK --> EMBED_O --> CHROMA
+  end
+
+  subgraph ONLINE ["🔍  Online — T10_SearchKnowledge  (per query)"]
+    direction TB
+    QUERY["Customer question"]
+    EMBED_Q["gemini-embedding-2\nEmbed query"]
+    SEARCH["ChromaDB cosine search\ntop-3 chunks"]
+    THRESH{{"distance\n> 0.75?"}}
+    LOW["[LOW_CONFIDENCE]\nreturn fallback flag"]
+    RESULT["Return top-3 chunks\nwith source labels"]
+    QUERY --> EMBED_Q --> SEARCH --> THRESH
+    THRESH -->|"yes — weak match"| LOW
+    THRESH -->|"no — strong match"| RESULT
+  end
+
+  subgraph ROOT ["root_agent response"]
+    direction TB
+    ANS["Answer from retrieved content\n(no fabrication)"]
+    FALL["Graceful fallback\n'support@orbit.io is the best resource'"]
+  end
+
+  CHROMA -.->|"query at runtime"| SEARCH
+  RESULT --> ANS
+  LOW --> FALL
+
+  classDef store fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e
+  classDef model fill:#dbeafe,stroke:#2563eb,color:#1a1a2e
+  classDef resp  fill:#dcfce7,stroke:#16a34a,color:#1a1a2e
+  classDef warn  fill:#fee2e2,stroke:#dc2626,color:#991b1b
+
+  class CHROMA store
+  class EMBED_O,EMBED_Q model
+  class ANS resp
+  class LOW,FALL warn
+  </div>
+  <div class="legend">
+    <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>ChromaDB vector store</span>
+    <span class="chip"><span class="dot" style="background:#2563eb;"></span>Gemini embedding model</span>
+    <span class="chip"><span class="dot" style="background:#16a34a;"></span>Strong match → answer</span>
+    <span class="chip"><span class="dot" style="background:#dc2626;"></span>Weak match → graceful fallback</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIAGRAM 4 — root_agent restore sequencing (Approach C — Persistent State) -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>4 · root_agent — Restore Sequencing  (Persistent State Dispatch)</h2>
+  <p class="desc">
+    root_agent manages the full restore flow across multiple conversation turns using a <strong>persistent session layer</strong>.
+    At the start of each turn, it reads the current checkpoint state and uses a
+    <strong>priority-ordered dispatch approach</strong> to determine exactly what to do next —
+    only one action fires per turn, and progress is recorded before the turn ends.
+    This makes the multi-step flow reliable and deterministic: the agent always knows where the conversation left off,
+    without re-reading the conversation history.
+  </p>
+  <div class="mermaid">
+flowchart TD
+
+  START(["Suspended account turn starts"])
+  T0G["💾 T0_GetSessionState(account_id)\nreads all 15 session fields\n(all defaults = 0 on first turn)"]
+  DISP{{"Dispatch table — top → bottom\nfirst matching row fires\none action per turn · HARD STOP after"}}
+
+  START --> T0G --> DISP
+
+  DISP -->|"Step 1\nhighest priority"| R1
+  DISP -->|"Step 2"| R2
+  DISP -->|"Step 3"| R3
+  DISP -->|"Step 4"| R4
+  DISP -->|"Step 5"| R5
+  DISP -->|"Step 6"| R6
+  DISP -->|"Step 7\nlowest priority"| R7
+
+  R1["Step 1 · Plan Execute\nWHEN: plan_change_requested=1\n      restore_complete=1  plan_validated=1\n      + customer confirmed\n──────────────────────────────\nDA4 · execute plan change\nT9 → T6_ChangePlan → T8_Receipt\nwrite: plan_executed=1"]
+
+  R2["Step 2 · Plan Validate\nWHEN: plan_change_requested=1\n      restore_complete=1  plan_validated=0\n──────────────────────────────\nDA4 · validate plan change\nT9_ValidatePlanChange\nReturn price · storage · seats\nwrite: plan_validated=1\nHARD STOP — await customer confirm"]
+
+  R3(["Step 3 · All Done\nWHEN: restore_complete=1\n      AND (no plan OR plan_executed=1)\n──────────────────────────────\n✅ Warm close — all steps complete"])
+
+  R4["Step 4 · Restore Only  (safety net)\nWHEN: payment_cleared=1\n      restore_complete=0\n──────────────────────────────\nDA3_RestoreAgent\nT5_RestoreAccount → T8_Receipt\nwrite: restore_complete=1"]
+
+  R5{{"Step 5 · AT RISK Choice\nWHEN: data_safe=0\n      at_risk_disclosed=1\n      at_risk_proceeding=0\n      payment_cleared=0"}}
+  R5E(["🤝 Data recovery team\nhuman escalation"])
+  R5P["write: at_risk_proceeding=1\nPresent card situation\nHARD STOP"]
+
+  R6["Step 6 · Payment + Restore\nWHEN: payment_cleared=0\n      AND (data_safe=1 OR at_risk_proceeding=1)\n──────────────────────────────\n① Card check — expired + no card → STOP\n② Consent check\n③ DA2_BillingAgent + DA3_RestoreAgent (same turn)\n   write: payment_cleared=1  restore_complete=1\n④ IF plan_change_requested:\n   + DA4 validate plan change  →  write: plan_validated=1"]
+
+  R7{{"Step 7 · Fresh Start\nWHEN: data_checked=0\n(first turn on this account)\n──────────────────────────────\nBalance-only inquiry?"}}
+  R7B["DA2 balance check only\nNo session state written\nHARD STOP"]
+  R7F["DA1 + DA2  ∥ parallel  (same turn)\nDA1: T2_CheckDataRetention\nDA2: T7 balance + T4 fee preview\n──────────────────────────────\nwrite: data_checked=1 · data_safe=X\n       days_suspended=N · project_count=N\n       plan_change_requested=X\n──────────────────────────────\nIF data_safe=0:\n  write: at_risk_disclosed=1\n  → AT RISK warning · 2-path choice\n  HARD STOP  (Step 5 fires next turn)\nIF data_safe=1:\n  Relay data · balance · fee · card\n  HARD STOP  (Step 6 fires next turn)"]
+
+  R5 -->|"escalate"| R5E
+  R5 -->|"proceed"| R5P
+  R7 -->|"yes"| R7B
+  R7 -->|"no — restore intent"| R7F
+
+  %% ── Styles ───────────────────────────────────────────────────────────
+  classDef state   fill:#1a1a2e,stroke:#5b4cf5,color:#fff,font-weight:600
+  classDef row     fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
+  classDef rowat   fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
+  classDef done    fill:#dcfce7,stroke:#16a34a,color:#1a1a2e,font-weight:600
+  classDef info    fill:#dbeafe,stroke:#2563eb,color:#1a1a2e
+  classDef esc     fill:#fee2e2,stroke:#dc2626,color:#991b1b
+
+  class DISP state
+  class R1,R2,R4,R6 row
+  class R5,R5P rowat
+  class R3 done
+  class R7,R7B,R7F info
+  class R5E esc
+  </div>
+  <div class="legend">
+    <span class="chip"><span class="dot" style="background:#1a1a2e;"></span>Dispatch gate (T0_GetSessionState)</span>
+    <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>Dispatch step fires (one per turn)</span>
+    <span class="chip"><span class="dot" style="background:#ea580c;"></span>AT RISK path</span>
+    <span class="chip"><span class="dot" style="background:#2563eb;"></span>Fresh start</span>
+    <span class="chip"><span class="dot" style="background:#16a34a;"></span>All done</span>
+    <span class="chip"><span class="dot" style="background:#dc2626;"></span>Human escalation</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- DIAGRAM 5 — SA1 Diagnostic Supervisor flow                              -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <h2>5 · SA1_DiagnosticSupervisor — Parallel Fan-out &amp; Synthesis</h2>
+  <p class="desc">
+    Invoked by root_agent when a customer's complaint is ambiguous — symptoms that could be caused by storage,
+    an integration failure, or an account issue.
+    SA1 fans out <strong>all three domain agents in parallel</strong> in a single LLM turn, collects their results,
+    and synthesises a ranked finding. Single-intent queries bypass SA1 entirely and route directly to the relevant domain agent.
+    Two demo accounts: <strong>20012 Taylor</strong> (Team plan, 95/100 GB — storage is the culprit) and
+    <strong>20013 Blake</strong> (Business plan, GitHub auth_failure — integration is the culprit).
+  </p>
+  <div class="mermaid">
+flowchart TD
+
+  ROOT_IN(["root_agent receives\nhealth complaint on ACTIVE account"])
+
+  ROUTE{{"Single-intent or\nambiguous?"}}
+  ROOT_IN --> ROUTE
+
+  DIRECT_ST["DA5_StorageAgent\ndirect route\n'How much storage am I using?'\n'Why are uploads failing?'"]
+  DIRECT_IG["DA6_IntegrationAgent\ndirect route\n'Is my GitHub working?'\n'Why isn't Slack syncing?'"]
+
+  ROUTE -->|"storage only"| DIRECT_ST
+  ROUTE -->|"integration only"| DIRECT_IG
+  ROUTE -->|"ambiguous —\n'something feels off'\n'things aren't syncing'"| SA1
+
+  SA1["🔶 SA1_DiagnosticSupervisor\ngemini-2.5-flash\nfan-out all 3 domains simultaneously"]
+
+  subgraph FANOUT ["∥ Parallel fan-out — all 3 fire in one SA1 turn"]
+    direction LR
+    DA1_D["DA1_AccountAgent\nT2_CheckDataRetention\ndata_safe · days_suspended\nproject_count"]
+    DA_ST_D["DA5_StorageAgent\nT11_CheckStorage\nused_gb / plan_gb\nused_pct · near_limit · headroom"]
+    DA_IG_D["DA6_IntegrationAgent\nT12_CheckIntegration\nintegration_name · status\nauth_failures · days_since_sync"]
+  end
+
+  SA1 --> DA1_D
+  SA1 --> DA_ST_D
+  SA1 --> DA_IG_D
+
+  SYNTH["SA1 Synthesis\n─────────────────────────────\nUrgency ranking:\nHIGH   → auth_failure · sync_error · data AT RISK\nMEDIUM → storage near_limit · disconnected\nHEALTHY → all clear\n─────────────────────────────\nReturns: PRIMARY FINDING + RECOMMENDED ACTION"]
+
+  DA1_D --> SYNTH
+  DA_ST_D --> SYNTH
+  DA_IG_D --> SYNTH
+
+  OUT_IG["PRIMARY FINDING: Integration (HIGH)\nGitHub auth_failure — 5 failures\nlast sync 3 days ago\nACTION: reconnect in Settings → Integrations\n── Demo: Account 20013 Blake / Nexus Digital ──"]
+  OUT_ST["PRIMARY FINDING: Storage (MEDIUM)\nTeam plan 95/100 GB used (95%) — NEAR LIMIT\nOnly 5 GB headroom — causing upload failures\nACTION: upgrade plan or archive files\n── Demo: Account 20012 Taylor / Brightline ──"]
+  OUT_OK["All 3 dimensions HEALTHY\nData safe · Storage healthy · Integration syncing\nNo action required"]
+
+  SYNTH -->|"HIGH urgency\nintegration issue"| OUT_IG
+  SYNTH -->|"MEDIUM urgency\nstorage near limit"| OUT_ST
+  SYNTH -->|"all clear"| OUT_OK
+
+  RELAY(["root_agent relays\nwarm finding to customer"])
+  OUT_IG --> RELAY
+  OUT_ST --> RELAY
+  OUT_OK --> RELAY
+  DIRECT_ST --> RELAY
+  DIRECT_IG --> RELAY
+
+  classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
+  classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
+  classDef domain     fill:#dcfce7,stroke:#16a34a,color:#1a1a2e,font-weight:600
+  classDef finding    fill:#dbeafe,stroke:#2563eb,color:#1a1a2e
+  classDef high       fill:#fee2e2,stroke:#dc2626,color:#991b1b
+  classDef medium     fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
+  classDef ok         fill:#dcfce7,stroke:#16a34a,color:#1a1a2e
+  classDef relay      fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e
+
+  class ROOT_IN,RELAY relay
+  class SA1 supervisor
+  class DA1_D,DA_ST_D,DA_IG_D,DIRECT_ST,DIRECT_IG domain
+  class SYNTH finding
+  class OUT_IG high
+  class OUT_ST medium
+  class OUT_OK ok
+  </div>
+  <div class="legend">
+    <span class="chip"><span class="dot" style="background:#ea580c;"></span>SA1 Supervisor (fan-out + synthesis)</span>
+    <span class="chip"><span class="dot" style="background:#16a34a;"></span>Domain Agent / direct bypass</span>
+    <span class="chip"><span class="dot" style="background:#2563eb;"></span>Synthesis &amp; urgency ranking</span>
+    <span class="chip"><span class="dot" style="background:#dc2626;"></span>HIGH urgency finding</span>
+    <span class="chip"><span class="dot" style="background:#ca8a04;"></span>MEDIUM urgency finding</span>
+    <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>root_agent relay to customer</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- APPENDIX — Future Supervisor Architecture (talking point, not built)    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div style="margin-top: 48px;">
+  <button
+    id="appendix-toggle"
+    onclick="toggleAppendix()"
+    style="
+      display: flex; align-items: center; gap: 10px;
+      background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 10px;
+      padding: 12px 20px; cursor: pointer; font-size: 14px; font-weight: 600;
+      color: #374151; width: 100%; text-align: left;
+    "
+  >
+    <span id="appendix-arrow" style="font-size: 16px; transition: transform 0.2s;">&#9658;</span>
+    <span>Appendix &mdash; Future Supervisor Architecture</span>
+    <span style="font-size: 12px; font-weight: 400; color: #9ca3af; margin-left: auto;">Click to expand</span>
+  </button>
+
+  <div id="appendix-content" style="display: none; margin-top: 16px;">
+    <div class="section">
+      <h2>A &middot; Future Supervisor Architecture &nbsp;<span style="font-size:13px;font-weight:400;color:#6b7280;">(talking point &mdash; not built)</span></h2>
+      <p class="desc">
+        Today's demo runs with a single SA1_DiagnosticSupervisor. As the product grows, domain agents naturally cluster into
+        four functional supervisors &mdash; each owning a coherent slice of the business. This diagram shows what the
+        architecture would look like at scale. The SA-Diagnostics Supervisor <em>is</em> today's SA1_DiagnosticSupervisor;
+        the other three are future state. root_agent continues to own auth, routing, restore sequencing, and safety
+        pre-flight &mdash; that doesn't change.
+      </p>
+      <div class="mermaid-pending" id="appendix-mermaid">
+graph TD
+
+  USER(["Customer message"])
+  ROOT["root_agent  (Uber)\nauth - safety - routing\nrestore state - RAG"]
+
+  USER --> ROOT
+
+  subgraph STEPS [" "]
+    direction LR
+
+    subgraph SAB ["SA-Billing Supervisor"]
+      direction TB
+      SABn["SA-Billing Supervisor"]
+      DA2s["DA2 BillingAgent\nbalance - payment - fee waiver"]
+      DAFr["DA-Dispute (future)\ncharge disputes"]
+      DAInv["DA-Invoice (future)\ninvoice history"]
+      SABn --> DA2s
+      SABn -.-> DAFr
+      SABn -.-> DAInv
+    end
+
+    subgraph SAA ["SA-Account Supervisor"]
+      direction TB
+      SAAn["SA-Account Supervisor"]
+      DA1s["DA1 AccountAgent\naccount status - data retention"]
+      DAId["DA-Identity (future)\nauth - access control"]
+      DASupp["DA-Suspension (future)\nsuspension rules"]
+      SAAn --> DA1s
+      SAAn -.-> DAId
+      SAAn -.-> DASupp
+    end
+
+    subgraph SAF ["SA-Fulfillment Supervisor"]
+      direction TB
+      SAFn["SA-Fulfillment Supervisor"]
+      DA3s["DA3 RestoreAgent\nrestore - receipt (Squad)"]
+      DA4s["DA4 PlanAgent\nplan change - receipt (Squad)"]
+      DAProv["DA-Provisioning (future)\nonboarding - seat management"]
+      SAFn --> DA3s
+      SAFn --> DA4s
+      SAFn -.-> DAProv
+    end
+
+    subgraph SAD ["SA-Diagnostics Supervisor - built as SA1"]
+      direction TB
+      SADn["SA1 DiagnosticSupervisor\nparallel fan-out - urgency synthesis"]
+      DA1d["DA1 AccountAgent\nshared read-only view"]
+      DA5s["DA5 StorageAgent\nstorage check T11"]
+      DA6s["DA6 IntegrationAgent\nintegration health T12"]
+      DAPerf["DA-Performance (future)\nuptime - latency"]
+      SADn --> DA1d
+      SADn --> DA5s
+      SADn --> DA6s
+      SADn -.-> DAPerf
+    end
+
+  end
+
+  ROOT -->|"billing/payment"| SABn
+  ROOT -->|"account/data check"| SAAn
+  ROOT -->|"restore/plan change"| SAFn
+  ROOT -->|"health complaint"| SADn
+
+  style STEPS fill:none,stroke:none
+
+  classDef uber       fill:#ede9fe,stroke:#5b4cf5,color:#1a1a2e,font-weight:600
+  classDef supervisor fill:#fff7ed,stroke:#ea580c,color:#1a1a2e,font-weight:600
+  classDef today      fill:#dcfce7,stroke:#16a34a,color:#1a1a2e,font-weight:600
+  classDef future     fill:#f9fafb,stroke:#d1d5db,color:#6b7280,font-style:italic
+
+  class ROOT uber
+  class SABn,SAAn,SADn,SAFn supervisor
+  class DA1s,DA2s,DA3s,DA4s,DA5s,DA6s,DA1d today
+  class DAFr,DAInv,DAId,DASupp,DAPerf,DAProv future
+      </div>
+
+      <div class="legend">
+        <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>Uber (root_agent &mdash; unchanged)</span>
+        <span class="chip"><span class="dot" style="background:#ea580c;"></span>Supervisor (4 functional domains)</span>
+        <span class="chip"><span class="dot" style="background:#16a34a;"></span>Domain / Squad Agent (built today)</span>
+        <span class="chip"><span class="dot" style="background:#d1d5db;"></span>Future agent (not built)</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- APPENDIX B — Advanced RAG: Hybrid Search + Re-ranking (talking point)  -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div style="margin-top: 16px;">
+  <button
+    id="appendix-b-toggle"
+    onclick="toggleAppendixB()"
+    style="
+      display: flex; align-items: center; gap: 10px;
+      background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 10px;
+      padding: 12px 20px; cursor: pointer; font-size: 14px; font-weight: 600;
+      color: #374151; width: 100%; text-align: left;
+    "
+  >
+    <span id="appendix-b-arrow" style="font-size: 16px; transition: transform 0.2s;">&#9658;</span>
+    <span>Appendix B &mdash; Advanced RAG: Hybrid Search + Re-ranking</span>
+    <span style="font-size: 12px; font-weight: 400; color: #9ca3af; margin-left: auto;">Click to expand</span>
+  </button>
+
+  <div id="appendix-b-content" style="display: none; margin-top: 16px;">
+    <div class="section">
+      <h2>B &middot; Advanced RAG: Hybrid Search + Re-ranking &nbsp;<span style="font-size:13px;font-weight:400;color:#6b7280;">(talking point &mdash; architecture extension)</span></h2>
+
+      <p class="desc">
+        T10 uses pure vector search today &mdash; right for the current 8-page policy corpus.
+        In production, where the knowledge base includes product catalogs, error code libraries, and
+        rule tables, vector search breaks on exact identifiers. The two-stage pipeline below is
+        the production upgrade path, implemented in my current sales role for phone model and
+        promo code lookups.
+      </p>
+
+      <!-- ── Pipeline diagram ───────────────────────────────────────────── -->
+      <div class="mermaid-pending" id="appendix-b-mermaid">
+graph LR
+    CUST(["Customer Query"]) --> ROOT["root_agent"]
+    ROOT --> GATE{"Identifier\nin query?"}
+
+    GATE -->|"No"| CV["ChromaDB\ncosine similarity"]
+    CV --> V3["Top 3 chunks"]
+    V3 --> LLM["LLM generates answer"]
+
+    GATE -->|"Yes - code / rule / SKU"| PAR["Parallel Retrieval"]
+    PAR --> BM25["BM25\nrank_bm25\nexact token match"]
+    PAR --> VEC["ChromaDB\nvector cosine"]
+    BM25 --> RRF["RRF Merge\nsingle unified list"]
+    VEC --> RRF
+    RRF --> RERANK["Cross-Encoder\nReranker\nCohere API"]
+    RERANK --> H3["Top 3 chunks"]
+    H3 --> LLM
+      </div>
+
+      <div class="legend" style="margin-top:12px;">
+        <span class="chip"><span class="dot" style="background:#5b4cf5;"></span>Basic vector — ~0.2s latency</span>
+        <span class="chip"><span class="dot" style="background:#ea580c;"></span>Hybrid + re-rank — ~1.5s latency</span>
+        <span class="chip"><span class="dot" style="background:#16a34a;"></span>Both paths feed the same LLM</span>
+      </div>
+
+      <!-- ── Routing table ──────────────────────────────────────────────── -->
+      <table style="font-size:13px;color:#374151;border-collapse:collapse;width:100%;margin-bottom:8px;">
+        <thead>
+          <tr style="background:#f3f4f6;">
+            <th style="padding:10px 14px;text-align:left;border:1px solid #e5e7eb;font-weight:700;">Query</th>
+            <th style="padding:10px 14px;text-align:left;border:1px solid #e5e7eb;font-weight:700;">Path</th>
+            <th style="padding:10px 14px;text-align:left;border:1px solid #e5e7eb;font-weight:700;">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">"What is the late fee waiver policy?"</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;white-space:nowrap;">T10_SearchKnowledge</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">Intent-based, no identifier</td>
+          </tr>
+          <tr style="background:#f9fafb;">
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">"What does Rule C say about waivers?"</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;white-space:nowrap;">T10_HybridSearch</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">Rule label — vector blurs A/B/C</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">"P002 plan storage limit"</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;white-space:nowrap;">T10_HybridSearch</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">Plan code — vector returns nearest plan, not exact plan</td>
+          </tr>
+          <tr style="background:#f9fafb;">
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">"BGW-320 firmware error"</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;white-space:nowrap;">T10_HybridSearch</td>
+            <td style="padding:10px 14px;border:1px solid #e5e7eb;">Model number — vector treats BGW-320 and BGW-210 as equivalent</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div>
+  </div>
+</div>
+
+
+<script>
+  function toggleAppendixB() {
+    const content = document.getElementById('appendix-b-content');
+    const arrow   = document.getElementById('appendix-b-arrow');
+    const btn     = document.getElementById('appendix-b-toggle');
+    const hidden  = content.style.display === 'none';
+    content.style.display = hidden ? 'block' : 'none';
+    arrow.style.transform = hidden ? 'rotate(90deg)' : '';
+    btn.querySelector('span:last-child').textContent = hidden ? 'Click to collapse' : 'Click to expand';
+    if (hidden) {
+      const el = document.getElementById('appendix-b-mermaid');
+      if (el && !el.classList.contains('mermaid')) {
+        el.classList.add('mermaid');
+        setTimeout(() => { mermaid.run({ nodes: [el] }); }, 50);
+      }
+    }
+  }
+</script>
+
+<script>
+  function toggleAppendix() {
+    const content = document.getElementById('appendix-content');
+    const arrow   = document.getElementById('appendix-arrow');
+    const btn     = document.getElementById('appendix-toggle');
+    const hidden  = content.style.display === 'none';
+    content.style.display = hidden ? 'block' : 'none';
+    arrow.style.transform = hidden ? 'rotate(90deg)' : '';
+    btn.querySelector('span:last-child').textContent = hidden ? 'Click to collapse' : 'Click to expand';
+    if (hidden) {
+      const el = document.getElementById('appendix-mermaid');
+      if (!el.classList.contains('mermaid')) {
+        el.classList.add('mermaid');
+        setTimeout(() => { mermaid.run({ nodes: [el] }); }, 50);
+      }
+    }
+  }
+</script>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#ede9fe',
+      primaryBorderColor: '#5b4cf5',
+      primaryTextColor: '#1a1a2e',
+      lineColor: '#5b4cf5',
+      fontSize: '13px',
+    },
+    flowchart: { curve: 'basis', htmlLabels: true },
+    sequence: { mirrorActors: false, messageAlign: 'left' },
+  });
+</script>
+
+</div><!-- /.arch-body -->
+</body>
+</html>

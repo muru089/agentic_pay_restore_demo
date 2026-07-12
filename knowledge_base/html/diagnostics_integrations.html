@@ -1,0 +1,288 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Account Health &amp; Integrations — Orbit Help Center</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8fc; color: #1a1a2e; }
+  nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 40px; display: flex; align-items: center; height: 64px; gap: 32px; }
+  .nav-logo { font-size: 22px; font-weight: 700; color: #5b4cf5; letter-spacing: -0.5px; text-decoration: none; }
+  .nav-logo span { color: #1a1a2e; }
+  .nav-links a { font-size: 14px; color: #555; text-decoration: none; margin-right: 24px; }
+  .nav-links a:hover { color: #5b4cf5; }
+  .nav-right { margin-left: auto; }
+  .nav-right a { background: #5b4cf5; color: #fff; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 8px; text-decoration: none; }
+  .breadcrumb { max-width: 860px; margin: 24px auto 0; padding: 0 32px; font-size: 13px; color: #9ca3af; }
+  .breadcrumb a { color: #5b4cf5; text-decoration: none; }
+  .page { max-width: 860px; margin: 0 auto; padding: 32px 32px 80px; }
+  .page-header { margin-bottom: 40px; border-bottom: 1px solid #e5e7eb; padding-bottom: 24px; }
+  .page-header h1 { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+  .page-header p { font-size: 16px; color: #6b7280; }
+  h2 { font-size: 20px; font-weight: 700; margin: 36px 0 16px; }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 10px; color: #374151; }
+  p { font-size: 15px; line-height: 1.7; color: #374151; margin-bottom: 16px; }
+  ul { margin: 0 0 16px 20px; }
+  ul li { font-size: 15px; line-height: 1.8; color: #374151; }
+  ol { margin: 0 0 16px 20px; }
+  ol li { font-size: 15px; line-height: 1.8; color: #374151; }
+
+  .callout { border-left: 4px solid #5b4cf5; background: #ede9fe; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .callout p { margin: 0; font-size: 14px; color: #374151; }
+  .warning { border-left: 4px solid #ef4444; background: #fef2f2; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .warning p { margin: 0; font-size: 14px; color: #374151; }
+  .success { border-left: 4px solid #16a34a; background: #dcfce7; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .success p { margin: 0; font-size: 14px; color: #374151; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
+  th { background: #f3f4f6; text-align: left; padding: 12px 16px; font-weight: 600; }
+  td { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #374151; }
+
+  .status-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .badge-green { background: #dcfce7; color: #15803d; }
+  .badge-red   { background: #fee2e2; color: #dc2626; }
+  .badge-amber { background: #fef3c7; color: #d97706; }
+  .badge-gray  { background: #f3f4f6; color: #6b7280; }
+
+  .faq-item { border-bottom: 1px solid #e5e7eb; padding: 20px 0; }
+  .faq-item h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .faq-item p { font-size: 14px; color: #6b7280; margin-bottom: 0; }
+
+  .related { background: #ede9fe; border-radius: 12px; padding: 24px; margin-top: 48px; }
+  .related h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: #5b4cf5; }
+  .related a { display: block; font-size: 14px; color: #1a1a2e; text-decoration: none; padding: 4px 0; }
+  .related a:hover { color: #5b4cf5; text-decoration: underline; }
+
+  footer { background: #1a1a2e; color: #9ca3af; text-align: center; padding: 32px; font-size: 13px; }
+  footer a { color: #9ca3af; text-decoration: none; margin: 0 12px; }
+  .footer-logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">Orbit<span>.</span></a>
+  <div class="nav-links">
+    <a href="#">Product</a>
+    <a href="#">Pricing</a>
+    <a href="index.html">Help Center</a>
+  </div>
+  <div class="nav-right"><a href="http://127.0.0.1:8080/orbit_chat.html" target="_blank">✦ Ask Orbit AI</a></div>
+</nav>
+
+<div class="breadcrumb">
+  <a href="index.html">Help Center</a> › Account Health &amp; Integrations
+</div>
+
+<div class="page">
+  <div class="page-header">
+    <h1>Account Health &amp; Integrations</h1>
+    <p>How to diagnose slow performance, upload failures, and sync issues — plus how to keep your integrations healthy.</p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <h2>Account Health Diagnostics</h2>
+
+  <p>If something feels off with your Orbit account — uploads are failing, projects are loading slowly, or changes aren't appearing in connected tools — Orbit's support chat can run an <strong>automated account health check</strong> to identify the cause.</p>
+
+  <p>The health check runs three checks in parallel and returns a ranked finding within seconds:</p>
+
+  <ul>
+    <li><strong>Data safety check</strong> — confirms whether your project data is intact (relevant for suspended accounts near the 30-day retention window)</li>
+    <li><strong>Storage check</strong> — measures how much of your plan's storage quota you have used and flags if you are approaching the limit</li>
+    <li><strong>Integration check</strong> — inspects the health of your connected third-party integration (Slack, GitHub, Jira, etc.) and reports any authentication failures or sync errors</li>
+  </ul>
+
+  <div class="callout">
+    <p><strong>How to trigger a health check:</strong> Open Orbit support chat and describe what you're experiencing — for example, "my account feels slow" or "things aren't syncing." The assistant will automatically run the diagnostic and identify the most likely cause. You do not need to use a specific phrase.</p>
+  </div>
+
+  <p>For single-domain questions ("how much storage am I using?" or "is my GitHub integration working?"), the assistant checks that specific dimension directly without running the full three-way diagnostic.</p>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <h2>Storage: Limits, Near-Limit Warnings, and What to Do</h2>
+
+  <p>Each Orbit plan includes a fixed file storage allocation. When your account approaches or exceeds this limit, uploads fail and project assets may not load properly.</p>
+
+  <table>
+    <thead>
+      <tr><th>Plan</th><th>Storage Included</th><th>Near-Limit Threshold</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Individual</td><td>10 GB</td><td>9 GB (90%)</td></tr>
+      <tr><td>Team</td><td>100 GB</td><td>90 GB (90%)</td></tr>
+      <tr><td>Business</td><td>500 GB</td><td>450 GB (90%)</td></tr>
+      <tr><td>Enterprise</td><td>2 TB (2,000 GB)</td><td>1,800 GB (90%)</td></tr>
+    </tbody>
+  </table>
+
+  <p>Orbit considers an account to be <strong>near the storage limit</strong> when usage reaches 90% or more of the plan allocation. At this threshold, upload failures become common and project loading times increase noticeably.</p>
+
+  <h3>Symptoms of a storage problem</h3>
+  <ul>
+    <li>File uploads fail with an error or timeout</li>
+    <li>Project assets (images, attachments) load slowly or show as broken</li>
+    <li>Exports take much longer than usual or fail to complete</li>
+    <li>New task attachments cannot be saved</li>
+  </ul>
+
+  <h3>How to check your current storage usage</h3>
+  <p>Go to <strong>Settings → Storage</strong> to see your current usage, how much headroom remains, and a breakdown by project. The assistant can also retrieve your storage stats in real time when you ask.</p>
+
+  <h3>What to do when storage is near the limit</h3>
+  <ul>
+    <li><strong>Option 1 — Upgrade your plan.</strong> Moving from Team to Business, for example, increases your storage from 100 GB to 500 GB. The additional storage is available immediately after upgrade.</li>
+    <li><strong>Option 2 — Archive or delete old files.</strong> Remove large attachments from completed projects. Go to the project, open the Files tab, and delete files that are no longer needed. Deleted files are permanently removed after 30 days.</li>
+    <li><strong>Option 3 — Export and remove.</strong> Download older project archives, then delete the associated files from Orbit to reclaim space.</li>
+  </ul>
+
+  <div class="warning">
+    <p><strong>Storage does not automatically free up at the start of a billing cycle.</strong> The limit is based on total stored files, not monthly upload volume. Deleting files is the only way to recover storage space without upgrading.</p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <h2>Integrations: Supported Services and Health Statuses</h2>
+
+  <p>Orbit connects with popular project management and communication tools to keep your team's work in sync. When an integration stops working, changes made in the external tool will not appear in Orbit — and vice versa.</p>
+
+  <h3>Supported integrations</h3>
+  <ul>
+    <li><strong>Slack</strong> — post task updates, project milestones, and alerts to Slack channels</li>
+    <li><strong>GitHub</strong> — link pull requests, branches, and commits to Orbit tasks; auto-update task status when PRs merge</li>
+    <li><strong>Jira</strong> — two-way sync with Jira issues; map Orbit tasks to Jira tickets and keep status in sync</li>
+    <li>Additional integrations are available in <strong>Settings → Integrations → Browse</strong></li>
+  </ul>
+
+  <h3>Integration health statuses</h3>
+
+  <table>
+    <thead>
+      <tr><th>Status</th><th>What it means</th><th>Action required?</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="status-badge badge-green">Healthy</span></td>
+        <td>Integration is connected and syncing normally.</td>
+        <td>No action needed.</td>
+      </tr>
+      <tr>
+        <td><span class="status-badge badge-red">Auth Failure</span></td>
+        <td>The authentication token has expired or been revoked. The integration cannot connect to the external service.</td>
+        <td>Yes — reconnect the integration to get a fresh token.</td>
+      </tr>
+      <tr>
+        <td><span class="status-badge badge-amber">Sync Error</span></td>
+        <td>The connection is alive but data is not syncing correctly. Often caused by permission changes in the external service.</td>
+        <td>Yes — disconnect and reconnect to clear the error state.</td>
+      </tr>
+      <tr>
+        <td><span class="status-badge badge-gray">Disconnected</span></td>
+        <td>The integration was removed or was never set up on this account.</td>
+        <td>Yes — connect in Settings → Integrations if you want to use it.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Why authentication failures happen</h3>
+  <p>Integrations authenticate with external services using access tokens. These tokens can become invalid when:</p>
+  <ul>
+    <li>You change your password on the external service (e.g., GitHub, Slack)</li>
+    <li>An administrator revokes OAuth permissions for third-party apps</li>
+    <li>The token expires due to the external service's security policy</li>
+    <li>Two-factor authentication settings change on the external account</li>
+  </ul>
+
+  <p>When an auth failure occurs, Orbit logs each failed attempt. You can see the number of recent auth failures in <strong>Settings → Integrations → [Integration name]</strong>.</p>
+
+  <h3>How to reconnect an integration</h3>
+  <ol>
+    <li>Go to <strong>Settings → Integrations</strong></li>
+    <li>Find the integration showing an error status</li>
+    <li>Click <strong>Disconnect</strong>, then <strong>Connect</strong></li>
+    <li>Complete the authorization flow in the external service (you may need to sign in again and approve permissions)</li>
+    <li>Once reconnected, Orbit will re-sync recent changes automatically within a few minutes</li>
+  </ol>
+
+  <div class="success">
+    <p><strong>After reconnecting:</strong> Changes made in the external tool during the outage will backfill automatically for the past 7 days. Older changes during the outage may need to be manually updated in Orbit.</p>
+  </div>
+
+  <h3>Symptoms of an integration problem</h3>
+  <ul>
+    <li>GitHub PRs are not appearing on linked Orbit tasks</li>
+    <li>Slack notifications from Orbit stopped arriving</li>
+    <li>Jira ticket status changes are not reflected in Orbit</li>
+    <li>The integration shows a last sync date of several days ago</li>
+    <li>Team members report that "things aren't updating" or "changes aren't showing up"</li>
+  </ul>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <h2>When to Run a Full Diagnostic vs. a Targeted Check</h2>
+
+  <p>Use the <strong>full account health diagnostic</strong> when you cannot pinpoint the cause of a problem — when the symptoms are ambiguous and could be caused by storage, an integration, or an account issue. The diagnostic runs all three checks simultaneously and ranks the findings by urgency.</p>
+
+  <p>Use a <strong>targeted check</strong> when you already know which dimension is affected:</p>
+  <ul>
+    <li>"How much storage am I using?" → storage check only</li>
+    <li>"Is my GitHub integration working?" → integration check only</li>
+    <li>"Is my account data still safe after the suspension?" → data retention check only</li>
+  </ul>
+
+  <p>Targeted checks are faster because they skip the dimensions that are not relevant to your question.</p>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <h2>Frequently Asked Questions</h2>
+
+  <div class="faq-item">
+    <h3>My uploads are failing. Is it definitely a storage issue?</h3>
+    <p>Upload failures are most commonly caused by storage being at or near the limit. However, they can also be caused by the file type being unsupported, the individual file exceeding the 5 GB per-file limit, or a temporary network issue. The quickest way to confirm is to ask the Orbit assistant to run a storage check — it will tell you your current usage and whether storage is the likely cause.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>How often does the integration sync?</h3>
+    <p>Orbit integrations sync in near-real-time for most events (within 1–2 minutes). If you notice a sync delay of more than 10 minutes, check the integration status in Settings → Integrations. A last sync date of more than 24 hours ago almost always indicates an auth failure or sync error that needs to be resolved.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>Can I have multiple integrations active at the same time?</h3>
+    <p>Yes. You can connect Slack, GitHub, Jira, and other integrations simultaneously. Each integration is managed independently — a problem with one does not affect the others.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>Does reconnecting an integration affect my existing data in Orbit?</h3>
+    <p>No. Disconnecting and reconnecting an integration only affects the sync connection — your existing Orbit data (tasks, projects, comments) is not modified or deleted. Changes made during the disconnection period will backfill for the past 7 days after reconnection.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>I upgraded my plan but my storage still shows as full.</h3>
+    <p>Storage increases from a plan upgrade take effect immediately after the upgrade is confirmed. If your storage still shows as full, try refreshing your browser and checking Settings → Storage again. If the issue persists after a few minutes, contact support at support@orbit.io.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>What happens to my integration during a suspended account?</h3>
+    <p>If your account is suspended, all integrations are paused — no events are sent to or received from connected services. When you restore your account, integrations resume automatically. Auth tokens may have expired during the suspension, so check Settings → Integrations after restoring to confirm everything is connected and healthy.</p>
+  </div>
+
+  <div class="related">
+    <h3>Related articles</h3>
+    <a href="data_retention.html">Data &amp; Storage — retention windows, storage limits, data exports</a>
+    <a href="upgrades_downgrades.html">Upgrades &amp; Downgrades — move to a plan with more storage</a>
+    <a href="suspension_reactivation.html">Suspension &amp; Reactivation — how to restore your account</a>
+    <a href="billing_payment.html">Billing &amp; Payment — manage your plan and payment method</a>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">Orbit.</div>
+  <div>
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms of Service</a>
+    <a href="#">Status</a>
+    <a href="#">Contact Support</a>
+  </div>
+  <p style="margin-top:16px;">© 2026 Orbit Technologies, Inc. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

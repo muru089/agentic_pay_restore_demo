@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Orbit AI Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f7f8fc;
+    color: #1a1a2e;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Nav */
+  nav {
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    height: 56px;
+    flex-shrink: 0;
+    gap: 16px;
+  }
+  .nav-logo { font-size: 20px; font-weight: 700; color: #5b4cf5; text-decoration: none; }
+  .nav-logo span { color: #1a1a2e; }
+  .nav-title { font-size: 14px; color: #6b7280; border-left: 1px solid #e5e7eb; padding-left: 16px; }
+  .nav-status { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #6b7280; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
+  .status-dot.connecting { background: #f59e0b; animation: pulse 1s infinite; }
+  .status-dot.error { background: #ef4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Chat layout */
+  .chat-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 16px;
+    min-height: 0;
+  }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Message wrapper (row + timestamp + chips stack vertically) */
+  .msg-wrap { display: flex; flex-direction: column; }
+
+  /* Bubbles */
+  .msg { display: flex; gap: 10px; align-items: flex-end; }
+  .msg.user { flex-direction: row-reverse; }
+
+  /* Timestamps */
+  .msg-time {
+    font-size: 10px;
+    color: #9ca3af;
+    margin-top: 2px;
+    padding: 0 44px;
+  }
+  .msg-wrap.user .msg-time { text-align: right; }
+  .msg-wrap.agent .msg-time { text-align: left; }
+
+  /* Context chips (post-response suggestions) */
+  .context-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 44px 0;
+  }
+  .context-chip {
+    background: #ede9fe; color: #5b4cf5; font-size: 12px; font-weight: 500;
+    padding: 5px 12px; border-radius: 20px; cursor: pointer; border: none;
+    transition: background 0.15s;
+  }
+  .context-chip:hover { background: #ddd6fe; }
+
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0;
+  }
+  .avatar.agent { background: #5b4cf5; color: #fff; }
+  .avatar.user  { background: #e5e7eb; color: #374151; }
+
+  .bubble {
+    max-width: 78%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1a1a2e;
+  }
+  .msg.agent .bubble {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .msg.user .bubble {
+    background: #5b4cf5;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+
+  /* Rich text inside agent bubbles */
+  .msg.agent .bubble p   { margin: 0 0 10px; }
+  .msg.agent .bubble p:last-child { margin-bottom: 0; }
+  .msg.agent .bubble ul  { margin: 6px 0 10px 18px; padding: 0; }
+  .msg.agent .bubble ul:last-child { margin-bottom: 0; }
+  .msg.agent .bubble li  { margin-bottom: 4px; }
+  .msg.agent .bubble strong { font-weight: 700; color: #1a1a2e; }
+  .msg.agent .bubble .md-label {
+    display: inline-block;
+    font-weight: 700;
+    color: #5b4cf5;
+    margin-right: 2px;
+  }
+
+  /* Typing indicator */
+  .typing-dots { display: flex; align-items: center; gap: 5px; padding: 4px 2px; }
+  .typing-dots span {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #5b4cf5; opacity: 0.3;
+    animation: typing-bounce 1.2s infinite ease-in-out;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.3; }
+    30% { transform: translateY(-5px); opacity: 1; }
+  }
+
+  /* Card form (inline — appears inside agent bubble) */
+  .card-form {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 12px;
+    box-shadow: 0 2px 12px rgba(91,76,245,0.08);
+    max-width: 360px;
+  }
+  .card-form h4 {
+    font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #1a1a2e;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-form h4::before { content: "🔒"; font-size: 14px; }
+  .field { margin-bottom: 12px; }
+  .field label { font-size: 12px; font-weight: 600; color: #6b7280; display: block; margin-bottom: 4px; }
+  .field input {
+    width: 100%; border: 1.5px solid #e5e7eb; border-radius: 8px;
+    padding: 10px 12px; font-size: 14px; font-family: monospace;
+    outline: none; transition: border 0.15s;
+  }
+  .field input:focus { border-color: #5b4cf5; }
+  .field input.error { border-color: #ef4444; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field-hint  { font-size: 11px; color: #9ca3af; margin-top: 3px; }
+  .field-error { font-size: 11px; color: #ef4444; margin-top: 3px; display: none; }
+  .field-error.show { display: block; }
+  .card-submit {
+    width: 100%; background: #5b4cf5; color: #fff; border: none;
+    padding: 11px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-top: 4px; transition: background 0.15s;
+  }
+  .card-submit:hover { background: #4a3de0; }
+  .card-submit:disabled { background: #c4b5fd; cursor: not-allowed; }
+
+  /* Payment success */
+  .payment-success {
+    display: flex; align-items: center; gap: 8px;
+    background: #f0fdf4; border: 1px solid #bbf7d0;
+    border-radius: 10px; padding: 12px 16px;
+    font-size: 14px; color: #065f46; font-weight: 600;
+    margin-top: 12px;
+  }
+
+  /* Receipt confirmation card */
+  .receipt-card {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;
+    padding: 12px 14px; margin-top: 12px;
+  }
+  .receipt-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #16a34a; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; flex-shrink: 0;
+  }
+  .receipt-title { font-size: 13px; font-weight: 700; color: #065f46; }
+  .receipt-ref   { font-size: 12px; color: #16a34a; margin-top: 2px; font-family: monospace; }
+  .receipt-note  { font-size: 11px; color: #6b7280; margin-top: 4px; }
+
+  /* Escalation handoff card */
+  .escalation-card {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+    padding: 12px 14px; margin-top: 12px;
+  }
+  .escalation-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #2563eb; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; flex-shrink: 0;
+  }
+  .escalation-title { font-size: 13px; font-weight: 700; color: #1e40af; }
+  .escalation-eta   { font-size: 12px; color: #2563eb; margin-top: 2px; }
+  .escalation-note  { font-size: 11px; color: #6b7280; margin-top: 4px; }
+
+  /* Error banner */
+  .error-banner {
+    display: flex; align-items: center; gap: 10px;
+    background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px;
+    padding: 12px 16px; color: #dc2626; font-size: 13px;
+    margin: 4px 0;
+  }
+  .error-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .error-banner span { flex: 1; }
+  .error-banner button {
+    background: none; border: none; color: #dc2626; cursor: pointer;
+    font-size: 14px; padding: 0 4px;
+  }
+
+  /* Input bar */
+  .input-bar {
+    background: #fff;
+    border-top: 1px solid #e5e7eb;
+    padding: 16px;
+    flex-shrink: 0;
+  }
+  .input-row {
+    display: flex; gap: 10px; align-items: flex-end;
+    max-width: 760px; margin: 0 auto;
+  }
+  textarea {
+    flex: 1; border: 1.5px solid #e5e7eb; border-radius: 12px;
+    padding: 10px 14px; font-size: 14px; font-family: inherit;
+    resize: none; outline: none; line-height: 1.5;
+    max-height: 120px; transition: border 0.15s;
+  }
+  textarea:focus { border-color: #5b4cf5; }
+  textarea:disabled { background: #f9fafb; }
+  button#sendBtn {
+    background: #5b4cf5; color: #fff; border: none;
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: background 0.15s;
+  }
+  button#sendBtn:hover:not(:disabled) { background: #4a3de0; }
+  button#sendBtn:disabled { background: #c4b5fd; cursor: not-allowed; }
+  button#sendBtn svg { width: 18px; height: 18px; }
+
+  button#micBtn {
+    background: none; border: 1.5px solid #e5e7eb; color: #9ca3af;
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: all 0.15s;
+  }
+  button#micBtn:hover { border-color: #5b4cf5; color: #5b4cf5; }
+  button#micBtn.listening {
+    background: #fee2e2; border-color: #dc2626; color: #dc2626;
+    animation: mic-pulse 1.2s ease-in-out infinite;
+  }
+  button#micBtn svg { width: 16px; height: 16px; }
+  @keyframes mic-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.3)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0)} }
+
+  .input-hint { text-align: center; font-size: 11px; color: #9ca3af; margin-top: 8px; }
+
+  /* Welcome */
+  .welcome {
+    text-align: center; padding: 40px 20px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .welcome-icon { font-size: 40px; }
+  .welcome h2 { font-size: 20px; font-weight: 700; }
+  .welcome p { font-size: 14px; color: #6b7280; max-width: 380px; line-height: 1.6; }
+  .welcome-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
+
+  /* Compact session header — replaces welcome block once conversation starts */
+  .session-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; margin-bottom: 4px;
+    background: #f5f3ff; border-radius: 12px;
+    border: 1px solid #ede9fe;
+  }
+  .session-header-avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: linear-gradient(135deg, #5b4cf5, #7c3aed);
+    color: #fff; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .session-header-text { flex: 1; }
+  .session-header-name { font-size: 13px; font-weight: 600; color: #1a1a2e; }
+  .session-header-sub  { font-size: 11px; color: #6b7280; margin-top: 1px; }
+  .chip {
+    background: #ede9fe; color: #5b4cf5; font-size: 13px; font-weight: 500;
+    padding: 6px 14px; border-radius: 20px; cursor: pointer; border: none;
+    transition: background 0.15s;
+  }
+  .chip:hover { background: #ddd6fe; }
+
+  /* Mobile responsive */
+  @media (max-width: 640px) {
+    nav { padding: 0 14px; height: 50px; }
+    .nav-title { display: none; }
+    .chat-wrap { padding: 0 8px; }
+    .bubble { max-width: 88%; font-size: 13px; padding: 10px 12px; }
+    .messages { padding: 16px 0 10px; gap: 10px; }
+    .msg-time { padding: 0 36px; }
+    .context-chips { padding: 4px 36px 0; }
+    .input-bar { padding: 10px 12px; }
+    .input-row { gap: 8px; }
+    textarea { font-size: 14px; padding: 9px 12px; }
+    button#micBtn, button#sendBtn { width: 38px; height: 38px; }
+    .welcome { padding: 24px 16px; }
+    .welcome h2 { font-size: 18px; }
+    .welcome-chips { gap: 6px; }
+    .chip { font-size: 12px; padding: 5px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="knowledge_base/html/index.html">Orbit<span>.</span></a>
+  <span class="nav-title">AI Support Assistant</span>
+  <div class="nav-status">
+    <a href="Project Files/architecture.html" target="_blank" style="font-size:13px;color:#6b7280;text-decoration:none;margin-right:12px;" onmouseover="this.style.color='#5b4cf5'" onmouseout="this.style.color='#6b7280'">Architecture</a>
+    <a href="knowledge_base/html/index.html" target="_blank" style="font-size:13px;color:#6b7280;text-decoration:none;margin-right:16px;" onmouseover="this.style.color='#5b4cf5'" onmouseout="this.style.color='#6b7280'">Help Center</a>
+    <button id="resetBtn" onclick="resetDemo()" style="font-size:12px;color:#6b7280;background:none;border:1px solid #e5e7eb;border-radius:6px;padding:4px 10px;cursor:pointer;margin-right:12px;" onmouseover="this.style.borderColor='#5b4cf5';this.style.color='#5b4cf5'" onmouseout="this.style.borderColor='#e5e7eb';this.style.color='#6b7280'">&#8635; Reset Demo</button>
+    <div class="status-dot connecting" id="statusDot"></div>
+    <span id="statusText">Connecting...</span>
+  </div>
+</nav>
+
+<div class="chat-wrap">
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">&#128075;</div>
+      <h2>Hi, I'm Orbit AI</h2>
+      <p>I can help with your account, billing, plan changes, or any questions about Orbit. What can I help you with today?</p>
+      <div class="welcome-chips">
+        <button class="chip" onclick="sendChip(this)">My account is suspended</button>
+        <button class="chip" onclick="sendChip(this)">What are the plan options?</button>
+        <button class="chip" onclick="sendChip(this)">Will my data be safe?</button>
+        <button class="chip" onclick="sendChip(this)">Fee waiver eligibility</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-bar">
+    <div class="input-row">
+      <textarea id="userInput" rows="1" placeholder="Type a message&#8230;"></textarea>
+      <button id="micBtn" title="Speak your message" onclick="toggleMic()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2" width="6" height="11" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+          <line x1="8" y1="22" x2="16" y2="22"/>
+        </svg>
+      </button>
+      <button id="sendBtn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+    <p class="input-hint">Orbit AI &middot; Powered by Google ADK &nbsp;&middot;&nbsp; Responses may not cover every scenario</p>
+  </div>
+</div>
+
+<script>
+const APP_NAME  = 'pay_restore_demo';
+const BASE_URL  = 'http://127.0.0.1:8000';
+
+// ── localStorage keys ─────────────────────────────────────────────────────
+const LS_USER    = 'orbit_userId';
+const LS_SESSION = 'orbit_sessionId';
+const LS_MSGS    = 'orbit_messages';
+
+// Stable userId — generated once and reused across page reloads.
+var USER_ID = localStorage.getItem(LS_USER);
+if (!USER_ID) {
+  USER_ID = 'demo-user-' + Math.random().toString(36).slice(2, 8);
+  try { localStorage.setItem(LS_USER, USER_ID); } catch(e) {}
+}
+
+var sessionId = null;
+var isWaiting = false;
+var pendingCardResolve = null;
+
+// Persisted message history [{role, text}] for localStorage restore.
+var messageHistory = [];
+
+// ── Conversation flow state ───────────────────────────────────────────────
+// Tracks what has been completed so chips only suggest relevant next actions.
+// Flags advance forward-only — they never reset mid-conversation.
+// Reset on new session via resetFlowState().
+var flowState = {
+  dataChecked: false,  // Turn 1 diagnostic complete (DA1/DA2 results received)
+  paymentDone: false,  // Payment charged (requires #ORD- to prevent false positives)
+  restoreDone: false,  // Account restored (requires #ORD-)
+  planDone:    false,  // Plan change executed (requires #ORD-)
+};
+
+function resetFlowState() {
+  flowState.dataChecked = false;
+  flowState.paymentDone = false;
+  flowState.restoreDone = false;
+  flowState.planDone    = false;
+}
+
+// Called on every agent response to advance the state machine.
+function updateFlowState(text) {
+  if (!text) return;
+  var t   = text.toLowerCase();
+  var ord = /#ord-/i.test(text);
+
+  if (!flowState.dataChecked &&
+      /projects are intact|data is safe|at risk|exceeds.*30.day|data.*may|all \d+ projects/.test(t)) {
+    flowState.dataChecked = true;
+  }
+  if (ord) {
+    if (!flowState.restoreDone && /account is now active|back online/.test(t)) {
+      flowState.restoreDone = true;
+    }
+    if (!flowState.planDone && /plan/.test(t) && /(upgraded|downgraded)/.test(t)) {
+      flowState.planDone = true;
+    }
+    if (!flowState.paymentDone && /payment.*confirm|payment processed|charged.*card|balance.*cleared/.test(t)) {
+      flowState.paymentDone = true;
+    }
+  }
+}
+
+// ── Session persistence helpers ───────────────────────────────────────────
+
+function saveMessages() {
+  if (!sessionId) return;
+  try { localStorage.setItem(LS_MSGS + '_' + sessionId, JSON.stringify(messageHistory)); } catch(e) {}
+}
+
+function saveSession() {
+  try { localStorage.setItem(LS_SESSION, sessionId); } catch(e) {}
+}
+
+function clearSessionStorage() {
+  try {
+    var old = localStorage.getItem(LS_SESSION);
+    if (old) localStorage.removeItem(LS_MSGS + '_' + old);
+    localStorage.removeItem(LS_SESSION);
+  } catch(e) {}
+  messageHistory = [];
+}
+
+// ── Session init ──────────────────────────────────────────────────────────
+
+async function initSession() {
+  resetFlowState();
+
+  // Try to restore a previous session from localStorage.
+  var storedSessionId = null;
+  try { storedSessionId = localStorage.getItem(LS_SESSION); } catch(e) {}
+
+  if (storedSessionId) {
+    var storedMsgs = [];
+    try { storedMsgs = JSON.parse(localStorage.getItem(LS_MSGS + '_' + storedSessionId) || '[]'); } catch(e) {}
+
+    if (storedMsgs.length > 0) {
+      // Verify the session still exists on the server (fails after server restart).
+      var sessionValid = false;
+      try {
+        var chk = await fetch(BASE_URL + '/apps/' + APP_NAME + '/users/' + USER_ID + '/sessions/' + storedSessionId);
+        sessionValid = chk.ok;
+      } catch(e) {}
+
+      if (sessionValid) {
+        sessionId = storedSessionId;
+        messageHistory = storedMsgs;
+        // Hide welcome and render stored messages (no chips for history)
+        hideWelcome();
+        storedMsgs.forEach(function(m) {
+          var wrapEl = addBubbleNode(m.role, m.text, null);
+          if (m.role === 'agent' && m.text) {
+            var bubble = wrapEl.querySelector('.bubble');
+            var receiptCard = buildReceiptCard(m.text);
+            if (receiptCard && bubble) bubble.appendChild(receiptCard);
+            var escCard = buildEscalationCard(m.text);
+            if (escCard && bubble) bubble.appendChild(escCard);
+          }
+        });
+        setStatus('online', 'Online (session restored)');
+        document.getElementById('userInput').focus();
+        return;
+      }
+      // Session no longer exists on server (e.g. server restarted) — create fresh.
+      clearSessionStorage();
+    }
+  }
+
+  // No valid stored session — create a new one.
+  clearSessionStorage();
+  try {
+    const res = await fetch(BASE_URL + '/apps/' + APP_NAME + '/users/' + USER_ID + '/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const session = await res.json();
+    sessionId = session.id;
+    saveSession();
+    setStatus('online', 'Online');
+    document.getElementById('userInput').focus();
+  } catch (e) {
+    setStatus('error', 'Cannot connect — is adk web running?');
+    console.error('Session init failed:', e);
+  }
+}
+
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot' + (state === 'online' ? '' : state === 'error' ? ' error' : ' connecting');
+  document.getElementById('statusText').textContent = text;
+}
+
+// ── Message send ──────────────────────────────────────────────────────────
+
+// Returns true if the text looks like a raw card number (16 consecutive digits, possibly space/dash separated)
+function containsCardNumber(text) {
+  const stripped = text.replace(/[\s\-]/g, '');
+  return /^\d{16}$/.test(stripped);
+}
+
+async function sendMessage(overrideText) {
+  const input = document.getElementById('userInput');
+  const text  = overrideText != null ? overrideText : input.value.trim();
+  if (!text || isWaiting) return;
+  if (!sessionId) {
+    addErrorBanner('Still connecting to the backend — please wait a moment and try again.');
+    return;
+  }
+
+  // Hide all chip rows the moment the user sends anything
+  clearAllChips();
+
+  // If card form is visible and user typed a new message, dismiss the form
+  if (pendingCardResolve && !overrideText) {
+    const form = document.getElementById('cardForm');
+    if (form) {
+      const parentMsg = form.closest('.msg');
+      if (parentMsg) parentMsg.remove();
+    }
+    var resolve = pendingCardResolve;
+    pendingCardResolve = null;
+    resolve({ status: 'dismissed' });
+  }
+
+  // Intercept raw card numbers typed in chat — PII security guard
+  // (only for free-text input, not for the form's JSON response)
+  if (!overrideText && containsCardNumber(text)) {
+    hideWelcome();
+    addBubble('user', text);
+    input.value = '';
+    autoResize(input);
+    addBubble('agent',
+      "For your security, please don't share card details directly in this chat window " +
+      "— I've got a secure form ready for you instead.");
+    isWaiting = false;
+    setInput(true);
+    showCardForm().then(function(cardResult) {
+      if (cardResult && cardResult.status === 'success') {
+        sendMessage(JSON.stringify(cardResult));
+      }
+    });
+    return;
+  }
+
+  hideWelcome();
+  // Don't show raw JSON card responses as a user bubble — the green
+  // "Card received" bubble already provides the visual confirmation.
+  var isCardJson = overrideText && overrideText.indexOf('{"status"') === 0;
+  if (!isCardJson) {
+    addBubble('user', text);
+    messageHistory.push({ role: 'user', text: text });
+    saveMessages();
+  }
+  if (!overrideText) input.value = '';
+  autoResize(input);
+
+  isWaiting = true;
+  setInput(false);
+  var typingId = addTyping();
+
+  // Streaming state
+  var streamRow    = null;   // the .msg-wrap element created on first chunk
+  var streamBubble = null;   // the .bubble element inside streamRow
+  var accumulated  = '';
+  var firstChunk   = true;
+
+  try {
+    await runSSE(text, function(chunkText) {
+      accumulated = chunkText;
+
+      if (firstChunk) {
+        firstChunk = false;
+        removeTyping(typingId);
+        // Create streaming bubble on first chunk
+        streamRow    = addBubbleNode('agent', '', null);
+        streamBubble = streamRow.querySelector('.bubble');
+      }
+
+      // Strip internal tokens from the live streaming display
+      var displayText = accumulated
+        .split('__CARD_FORM__')[0]
+        .replace('__ESCALATION__', '')
+        .trim();
+      if (streamBubble) {
+        streamBubble.innerHTML = renderMarkdown(displayText);
+      }
+      scrollBottom();
+    });
+
+    // SSE complete
+    var agentText = accumulated || "I didn't catch a response — please try again.";
+
+    if (agentText.indexOf('__CARD_FORM__') !== -1) {
+      // Bubble already shows pre-token text from streaming.
+      // Re-enable input immediately — card form is non-blocking.
+      isWaiting = false;
+      setInput(true);
+      showCardForm().then(function(cardResult) {
+        if (cardResult && cardResult.status === 'success') {
+          sendMessage(JSON.stringify(cardResult));
+        }
+        // status === 'dismissed' means user typed a message instead — do nothing
+      });
+      // Persist the display text (without the token) as the agent message
+      var displayOnly = agentText.split('__CARD_FORM__')[0].trim();
+      if (displayOnly) { messageHistory.push({ role: 'agent', text: displayOnly }); saveMessages(); }
+      return;
+    }
+
+    if (!streamRow) {
+      // Nothing streamed at all — fall back to static bubble
+      addBubble('agent', agentText);
+    } else {
+      // Final render already done in streaming callback; inject rich cards and chips.
+      var hasEscalation = agentText.indexOf('__ESCALATION__') !== -1;
+      var displayText = agentText.replace('__ESCALATION__', '').trim();
+
+      // Update bubble to strip the token if it snuck into the streamed text
+      if (hasEscalation && streamBubble) {
+        streamBubble.innerHTML = renderMarkdown(displayText);
+      }
+
+      var receiptCard = buildReceiptCard(displayText);
+      if (receiptCard && streamBubble) streamBubble.appendChild(receiptCard);
+
+      if (hasEscalation) {
+        var escCard = buildEscalationCard(displayText);
+        if (escCard && streamBubble) streamBubble.appendChild(escCard);
+      }
+
+      // Show contextual chips (skip for card JSON responses)
+      if (!isCardJson && !hasEscalation) showContextChips(displayText, streamRow);
+    }
+
+    // Persist agent message (strip internal tokens)
+    var persistText = agentText.replace('__ESCALATION__', '').replace('__CARD_FORM__', '').trim();
+    if (persistText && !isCardJson) { messageHistory.push({ role: 'agent', text: persistText }); saveMessages(); }
+
+  } catch (e) {
+    removeTyping(typingId);
+    addErrorBanner("I'm having trouble connecting right now. Please try again in a moment.");
+    console.error('SSE error:', e);
+  }
+
+  isWaiting = false;
+  setInput(true);
+}
+
+// runSSE accepts an optional onChunk(accumulatedText) callback.
+// Called each time a new text part arrives from root_agent.
+async function runSSE(text, onChunk) {
+  var res = await fetch(BASE_URL + '/run_sse', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      app_name:    APP_NAME,
+      user_id:     USER_ID,
+      session_id:  sessionId,
+      new_message: { role: 'user', parts: [{ text: text }] }
+    })
+  });
+
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+
+  var reader  = res.body.getReader();
+  var decoder = new TextDecoder();
+  var buffer       = '';
+  var allAgentText = '';   // accumulated across all events
+  var lastEventText = ''; // text from the most recent event (fallback)
+
+  while (true) {
+    var chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    var lines = buffer.split('\n');
+    buffer = lines.pop();
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line.indexOf('data:') !== 0) continue;
+      var raw = line.slice(5).trim();
+      if (!raw) continue;
+      try {
+        var event = JSON.parse(raw);
+        // Only show root_agent's customer-facing response — filter out
+        // sub-agent internal messages (DA2, DA3, DA4, SA1, etc.)
+        if (event.content && event.content.parts && event.author === 'root_agent') {
+          for (var j = 0; j < event.content.parts.length; j++) {
+            var part = event.content.parts[j];
+            if (part.text) {
+              allAgentText += part.text;
+              lastEventText = part.text;
+              if (onChunk) onChunk(allAgentText);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  return allAgentText || lastEventText || "I didn't catch a response — please try again.";
+}
+
+// ── Contextual chips (mid-conversation) ──────────────────────────────────
+
+function clearAllChips() {
+  document.querySelectorAll('.context-chips').forEach(function(el) { el.remove(); });
+}
+
+function showContextChips(agentText, wrapEl) {
+  if (!agentText || agentText.indexOf('{"status"') === 0) return;
+
+  // Advance flow state from this response before selecting chips.
+  updateFlowState(agentText);
+
+  // Strip markdown markers before pattern testing so **Team** matches /team/.
+  var t = agentText.toLowerCase().replace(/[*_`]/g, '');
+  var chips = [];
+
+  // Human escalation — chips would be confusing while agent is handing off.
+  if (/i'll connect you|routing you|connect you with our|connecting you with/.test(t)) {
+    return;
+  }
+
+  // ── State-gated selection ──────────────────────────────────────────────
+  // State flags win over response-text matching. Once an action is completed,
+  // its chip category is suppressed for the rest of the session.
+  // Balance chips are intentionally excluded from all post-payment states
+  // (balance is $0 after payment — no point re-checking it).
+
+  if (flowState.planDone) {
+    // Everything done.
+    chips = ['Check my storage', 'Compare plans', 'Tell me about AutoPay'];
+
+  } else if (flowState.restoreDone) {
+    // Restored, plan change pending or nothing more to do.
+    // No balance chip — they just paid, balance is $0.
+    chips = ['Upgrade my plan', 'Check my storage', 'Compare plans'];
+
+  } else if (flowState.paymentDone) {
+    // Payment charged but restore pending (rare edge / error-recovery state).
+    chips = ['Check account status'];
+
+  } else if (flowState.dataChecked) {
+    // Post Turn-1 diagnostic, pre-payment. Narrow by current response content.
+    if (/at risk|exceeds.*30.day|purged|archived|data.*may/.test(t)) {
+      chips = ['Talk to a specialist', 'Restore anyway', 'What data can be recovered?'];
+    } else if (/shall i go ahead|would you like.*charge|shall i charge|confirm.*charge/.test(t)) {
+      // Consent-request phrasing — offer quick-confirm chip.
+      chips = ['Yes, go ahead', "What's the total?"];
+    } else {
+      // Standard pre-payment state (data safe, fee shown, card situation next).
+      chips = ['Pay now and restore', 'Upgrade to Business too', "What's the late fee?"];
+    }
+
+  } else {
+    // Active account or unknown state — fall back to response-text patterns.
+    if (/at risk|exceeds.*30.day|purged|archived|data.*may/.test(t)) {
+      chips = ['Talk to a specialist', 'Restore anyway', 'What data can be recovered?'];
+    } else if (/fee waiver|late fee|waiver.*applied|fee.*waived/.test(t)) {
+      chips = ['Pay and restore now', 'Tell me about AutoPay'];
+    } else if (/no balance due|all paid up|balance.*\$0/.test(t)) {
+      // Just confirmed $0 — no balance chip.
+      chips = ['Upgrade my plan', 'Check my storage', 'Compare plans'];
+    } else if (/already active|nothing to restore|account is active/.test(t)) {
+      chips = ['Upgrade my plan', "What's my balance?", 'Check my storage'];
+    } else if (/plan options|business plan|team plan|individual plan|enterprise plan|monthly.*\$|per month|upgrade.*plan|downgrade/.test(t)) {
+      chips = ['How do upgrades work?', 'What are seat limits?', 'Compare plans'];
+    } else if (/storage|upload.*fail|near.*limit|loading slow/.test(t)) {
+      chips = ['Upgrade for more storage', 'Archive old projects', 'Compare plans'];
+    } else if (/github|slack|integration|sync.*fail|auth.*fail|reconnect/.test(t)) {
+      chips = ['Reconnect integration', 'Check my storage', 'Compare plans'];
+    } else if (/what can i help|how can i help|help you with today|anything else.*i can|is there.*i can help/.test(t)) {
+      chips = ['Upgrade my plan', 'Compare plans', 'Check my storage'];
+    }
+  }
+
+  if (!chips.length) return;
+
+  var chipRow = document.createElement('div');
+  chipRow.className = 'context-chips';
+
+  chips.forEach(function(label) {
+    var btn = document.createElement('button');
+    btn.className = 'context-chip';
+    btn.textContent = label;
+    btn.onclick = function() {
+      chipRow.remove();
+      sendMessage(label);
+    };
+    chipRow.appendChild(btn);
+  });
+
+  wrapEl.appendChild(chipRow);
+  scrollBottom();
+}
+
+// ── Receipt / confirmation card ───────────────────────────────────────────
+
+function buildReceiptCard(text) {
+  if (!text) return null;
+
+  // Only render a receipt card when there's an actual order reference.
+  var orderMatch = text.match(/#ORD-[A-Z0-9]+/i);
+  if (!orderMatch) return null;
+
+  var t = text.toLowerCase();
+  var isPayment = /payment processed|charged to card/.test(t);
+  var isRestore = /account is now active|back online|restored/.test(t);
+  var isPlan    = /plan/.test(t) && /(upgraded|changed|active for)/.test(t);
+
+  var title = 'Confirmed';
+  if (isPayment) title = 'Payment Confirmed';
+  if (isPlan)    title = 'Plan Updated';
+  if (isRestore) title = 'Account Restored';
+
+  var orderRef = orderMatch[0].toUpperCase();
+
+  // Extract supplementary detail lines from the agent response text.
+  var details = [];
+
+  // Amount charged — e.g. "$49 has been charged" / "$74 has been charged" / "total charged: $49"
+  var amtMatch = text.match(/\$(\d+(?:\.\d{2})?)\s*(?:has been charged|charged to|was charged)/i)
+               || text.match(/total charged[:\s]+\$(\d+(?:\.\d{2})?)/i);
+  if (amtMatch) details.push('Amount: $' + amtMatch[1]);
+
+  // Card used — "card ending in 4321"
+  var cardMatch = text.match(/card\s+ending\s+(?:in\s+)?(\d{4})/i);
+  if (cardMatch) details.push('Card: ···· ' + cardMatch[1]);
+
+  // Plan name on upgrade/downgrade — "Business upgrade confirmed" or "upgraded to Business"
+  var planMatch = text.match(/(?:upgraded?\s+to|downgraded?\s+to|your\s+(\w+)\s+account\s+is\s+(?:back|now))/i);
+  if (!planMatch) planMatch = text.match(/your\s+(\w+)\s+account\s+is\s+(?:back|now)/i);
+  if (planMatch && planMatch[1] && /(team|business|enterprise|individual)/i.test(planMatch[1])) {
+    details.push('Plan: ' + planMatch[1].charAt(0).toUpperCase() + planMatch[1].slice(1));
+  }
+
+  var detailHtml = details.length
+    ? '<div class="receipt-note" style="margin-top:4px;font-size:12px;color:#374151;">' + details.join(' &nbsp;&middot;&nbsp; ') + '</div>'
+    : '';
+
+  var card = document.createElement('div');
+  card.className = 'receipt-card';
+  card.innerHTML =
+    '<div class="receipt-icon">&#10003;</div>' +
+    '<div class="receipt-body">' +
+      '<div class="receipt-title">' + title + '</div>' +
+      '<div class="receipt-ref">' + orderRef + '</div>' +
+      detailHtml +
+      '<div class="receipt-note">Confirmation sent to your email on file</div>' +
+    '</div>';
+  return card;
+}
+
+// ── Escalation handoff card ───────────────────────────────────────────────
+
+function buildEscalationCard(text) {
+  // Only called when __ESCALATION__ token was present in the agent response.
+  if (!text) return null;
+  var card = document.createElement('div');
+  card.className = 'escalation-card';
+  card.innerHTML =
+    '<div class="escalation-icon">&#128222;</div>' +
+    '<div>' +
+      '<div class="escalation-title">Connecting to Support Team</div>' +
+      '<div class="escalation-eta">Estimated wait time: under 5 minutes</div>' +
+      '<div class="escalation-note">We\'ve shared your account context — no need to repeat it.</div>' +
+    '</div>';
+  return card;
+}
+
+// ── Error banner ──────────────────────────────────────────────────────────
+
+function addErrorBanner(msg) {
+  var msgs   = document.getElementById('messages');
+  var banner = document.createElement('div');
+  banner.className = 'error-banner';
+  banner.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>' +
+      '<line x1="12" y1="9" x2="12" y2="13"/>' +
+      '<line x1="12" y1="17" x2="12.01" y2="17"/>' +
+    '</svg>' +
+    '<span>' + msg + '</span>' +
+    '<button onclick="this.parentElement.remove()">&#x2715;</button>';
+  msgs.appendChild(banner);
+  scrollBottom();
+}
+
+// ── Card form (inline) ────────────────────────────────────────────────────
+
+function showCardForm() {
+  return new Promise(function(resolve) {
+    pendingCardResolve = resolve;
+
+    var formHtml =
+      '<div class="card-form" id="cardForm">' +
+        '<h4>Secure Card Details</h4>' +
+        '<div class="field">' +
+          '<label>Card Number</label>' +
+          '<input type="text" id="cfNum" placeholder="XXXX XXXX XXXX XXXX" maxlength="19"' +
+                 ' oninput="formatCardNum(this)" />' +
+          '<div class="field-hint">16 digits &middot; e.g. 4111 1111 1111 9988</div>' +
+          '<div class="field-error" id="cfNumErr">Please enter a valid 16-digit card number.</div>' +
+        '</div>' +
+        '<div class="field-row">' +
+          '<div class="field">' +
+            '<label>Expiry (MM/YY)</label>' +
+            '<input type="text" id="cfExp" placeholder="MM/YY" maxlength="5"' +
+                   ' oninput="formatExpiry(this)" />' +
+            '<div class="field-error" id="cfExpErr">Invalid or expired date.</div>' +
+          '</div>' +
+          '<div class="field">' +
+            '<label>CVV</label>' +
+            '<input type="text" id="cfCvv" placeholder="123" maxlength="3"' +
+                   ' oninput="this.value=this.value.replace(/\\D/g,\'\')" />' +
+            '<div class="field-error" id="cfCvvErr">3 digits required.</div>' +
+          '</div>' +
+        '</div>' +
+        '<button class="card-submit" onclick="submitCard()">Pay Securely</button>' +
+      '</div>';
+
+    var wrap = document.createElement('div');
+    wrap.innerHTML = formHtml;
+    addBubbleNode('agent', '', wrap.firstElementChild);
+    scrollBottom();
+  });
+}
+
+function formatCardNum(el) {
+  var v = el.value.replace(/\D/g, '').slice(0, 16);
+  el.value = v.replace(/(.{4})/g, '$1 ').trim();
+}
+
+function formatExpiry(el) {
+  var v = el.value.replace(/\D/g, '').slice(0, 4);
+  if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
+  el.value = v;
+}
+
+function luhn(num) {
+  var sum = 0, alt = false;
+  for (var i = num.length - 1; i >= 0; i--) {
+    var d = parseInt(num[i]);
+    if (alt) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+    alt = !alt;
+  }
+  return sum % 10 === 0;
+}
+
+function validExpiry(val) {
+  var parts = val.split('/');
+  if (parts.length !== 2) return false;
+  var mm = parseInt(parts[0]), yy = parseInt(parts[1]);
+  if (isNaN(mm) || isNaN(yy)) return false;
+  var now = new Date();
+  var exp = new Date(2000 + yy, mm - 1, 1);
+  return exp > now;
+}
+
+function submitCard() {
+  var numRaw = document.getElementById('cfNum').value.replace(/\s/g, '');
+  var exp    = document.getElementById('cfExp').value.trim();
+  var cvv    = document.getElementById('cfCvv').value.trim();
+
+  var valid = true;
+
+  var numOk = numRaw.length === 16 && !/0{4,}/.test(numRaw) && !/^(.)\1{15}$/.test(numRaw);
+  showFieldError('cfNum', 'cfNumErr', !numOk);
+  if (!numOk) valid = false;
+
+  var expOk = validExpiry(exp);
+  showFieldError('cfExp', 'cfExpErr', !expOk);
+  if (!expOk) valid = false;
+
+  var cvvOk = /^\d{3}$/.test(cvv);
+  showFieldError('cfCvv', 'cfCvvErr', !cvvOk);
+  if (!cvvOk) valid = false;
+
+  if (!valid) return;
+
+  var last4 = numRaw.slice(-4);
+
+  // Swap form for success message
+  var form    = document.getElementById('cardForm');
+  var success = document.createElement('div');
+  success.className = 'payment-success';
+  success.innerHTML = '<span>&#10003;</span> Card received &nbsp;&middot;&nbsp; Ending ' + last4;
+  form.replaceWith(success);
+  scrollBottom();
+
+  if (pendingCardResolve) {
+    pendingCardResolve({ status: 'success', card_last4: last4 });
+    pendingCardResolve = null;
+  }
+}
+
+function showFieldError(inputId, errId, show) {
+  document.getElementById(inputId).classList.toggle('error', show);
+  document.getElementById(errId).classList.toggle('show', show);
+}
+
+// ── Markdown renderer (agent bubbles only) ────────────────────────────────
+
+function renderMarkdown(raw) {
+  var blocks = raw.trim().split(/\n{2,}/);
+  return blocks.map(function(block) {
+    var lines = block.trim().split('\n');
+
+    // Detect bullet list block (lines starting with * or -)
+    var isList = lines.every(function(l) { return /^\s*[\*\-]\s+/.test(l); });
+    if (isList) {
+      var items = lines.map(function(l) {
+        var content = l.replace(/^\s*[\*\-]\s+/, '');
+        return '<li>' + inlineFormat(content) + '</li>';
+      }).join('');
+      return '<ul>' + items + '</ul>';
+    }
+
+    // Plain paragraph
+    var para = lines.join(' ');
+    return '<p>' + inlineFormat(para) + '</p>';
+  }).join('');
+}
+
+function inlineFormat(text) {
+  var safe = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return safe
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
+    .replace(/\*/g, '');
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────────────
+
+function nowTime() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// addBubble: creates a full bubble with receipt card + context chips for agent messages.
+// Returns the outer .msg-wrap element.
+function addBubble(role, text) {
+  var wrapEl = addBubbleNode(role, text, null);
+  if (role === 'agent' && text) {
+    var bubble = wrapEl.querySelector('.bubble');
+    var receiptCard = buildReceiptCard(text);
+    if (receiptCard && bubble) bubble.appendChild(receiptCard);
+    var hasEsc = text.indexOf('__ESCALATION__') !== -1;
+    if (hasEsc) {
+      var escCard = buildEscalationCard(text);
+      if (escCard && bubble) bubble.appendChild(escCard);
+    }
+    if (!isWaiting && !hasEsc) showContextChips(text, wrapEl);
+  }
+  return wrapEl;
+}
+
+// addBubbleNode: low-level bubble creation. Returns the outer .msg-wrap element.
+function addBubbleNode(role, text, extraNode) {
+  var msgs = document.getElementById('messages');
+
+  // Outer wrapper stacks row + timestamp + chips vertically
+  var wrap = document.createElement('div');
+  wrap.className = 'msg-wrap ' + role;
+
+  var row = document.createElement('div');
+  row.className = 'msg ' + role;
+
+  var avatar = document.createElement('div');
+  avatar.className = 'avatar ' + role;
+  avatar.textContent = role === 'agent' ? 'AI' : 'You';
+
+  var bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  if (text) {
+    if (role === 'agent') {
+      bubble.innerHTML = renderMarkdown(text);
+    } else {
+      bubble.textContent = text;
+    }
+  }
+  if (extraNode) bubble.appendChild(extraNode);
+
+  if (role === 'agent') {
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+  } else {
+    row.appendChild(bubble);
+    row.appendChild(avatar);
+  }
+
+  // Timestamp beneath the row
+  var timeEl = document.createElement('div');
+  timeEl.className = 'msg-time';
+  timeEl.textContent = nowTime();
+
+  wrap.appendChild(row);
+  wrap.appendChild(timeEl);
+
+  msgs.appendChild(wrap);
+  scrollBottom();
+  return wrap;
+}
+
+var typingCounter = 0;
+function addTyping() {
+  var id   = 'typing-' + (++typingCounter);
+  var msgs = document.getElementById('messages');
+  var row  = document.createElement('div');
+  row.className = 'msg agent';
+  row.id = id;
+
+  var avatar = document.createElement('div');
+  avatar.className = 'avatar agent';
+  avatar.textContent = 'AI';
+
+  var bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML =
+    '<div class="typing-dots">' +
+      '<span></span><span></span><span></span>' +
+    '</div>';
+
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  msgs.appendChild(row);
+  scrollBottom();
+
+  return id;
+}
+
+function removeTyping(id) {
+  var el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function hideWelcome() {
+  var w = document.getElementById('welcome');
+  if (!w) return;
+  var header = document.createElement('div');
+  header.className = 'session-header';
+  header.innerHTML =
+    '<div class="session-header-avatar">AI</div>' +
+    '<div class="session-header-text">' +
+      '<div class="session-header-name">Orbit AI</div>' +
+      '<div class="session-header-sub">Gemini 2.5 Flash &middot; Google ADK &middot; Responses are AI-generated</div>' +
+    '</div>';
+  w.replaceWith(header);
+}
+
+function scrollBottom() {
+  var msgs = document.getElementById('messages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function setInput(enabled) {
+  document.getElementById('sendBtn').disabled = !enabled;
+  document.getElementById('micBtn').disabled  = !enabled;
+  if (enabled) document.getElementById('userInput').focus();
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function sendChip(btn) {
+  sendMessage(btn.textContent);
+}
+
+// ── Microphone (Web Speech API) ───────────────────────────────────────────
+var micRecognition = null;
+var micListening   = false;
+
+function toggleMic() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    addBubble('agent', "Speech recognition isn't supported in this browser. Try Chrome.");
+    return;
+  }
+  if (micListening) {
+    if (micRecognition) micRecognition.stop();
+    return;
+  }
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  micRecognition = new SR();
+  micRecognition.lang = 'en-US';
+  micRecognition.interimResults = true;
+  micRecognition.continuous = false;
+
+  micRecognition.onstart = function() {
+    micListening = true;
+    document.getElementById('micBtn').classList.add('listening');
+    document.getElementById('userInput').placeholder = 'Listening…';
+  };
+
+  micRecognition.onresult = function(e) {
+    var transcript = Array.from(e.results)
+      .map(function(r) { return r[0].transcript; }).join('');
+    var input = document.getElementById('userInput');
+    input.value = transcript;
+    autoResize(input);
+    if (e.results[e.results.length - 1].isFinal) {
+      micRecognition.stop();
+      setTimeout(function() { sendMessage(); }, 300);
+    }
+  };
+
+  micRecognition.onerror = function() { micRecognition.stop(); };
+
+  micRecognition.onend = function() {
+    micListening = false;
+    document.getElementById('micBtn').classList.remove('listening');
+    document.getElementById('userInput').placeholder = 'Type a message…';
+  };
+
+  micRecognition.start();
+}
+
+// Enter to send (Shift+Enter = newline)
+document.getElementById('userInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+document.getElementById('userInput').addEventListener('input', function() { autoResize(this); });
+
+// ── Reset Demo ────────────────────────────────────────────────────────────
+async function resetDemo() {
+  if (!confirm('Reset the demo? This will clear the conversation and restore all accounts to Day 1.')) return;
+  var btn = document.getElementById('resetBtn');
+  btn.textContent = 'Resetting…';
+  btn.disabled = true;
+  clearSessionStorage();
+  try {
+    var res = await fetch(BASE_URL + '/reset-db', { method: 'POST' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    setTimeout(function() { window.location.reload(); }, 400);
+  } catch(e) {
+    btn.textContent = '✗ Reset failed';
+    btn.disabled = false;
+    console.error('Reset failed:', e);
+  }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+initSession();
+</script>
+</body>
+</html>

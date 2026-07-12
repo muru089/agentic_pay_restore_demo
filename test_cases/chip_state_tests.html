@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<!--
+  chip_state_tests.html — Chip state machine regression tests
+  Open directly in browser. No server required.
+  Tests the flowState + updateFlowState + showContextChips logic in isolation.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chip State Tests — Orbit Demo</title>
+<style>
+  body { font-family: monospace; margin: 2rem; background: #f5f5f5; color: #111; }
+  h1 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+  .meta { color: #555; font-size: 0.85rem; margin-bottom: 1.5rem; }
+  .suite { margin-bottom: 2rem; }
+  .suite-title { font-weight: bold; font-size: 1rem; border-bottom: 1px solid #ccc;
+                 padding-bottom: 0.25rem; margin-bottom: 0.5rem; }
+  .test { padding: 0.3rem 0.5rem; margin: 0.2rem 0; border-radius: 3px; font-size: 0.85rem; }
+  .pass { background: #e6f4ea; border-left: 3px solid #34a853; }
+  .fail { background: #fce8e6; border-left: 3px solid #d93025; }
+  .label { font-weight: bold; }
+  .detail { color: #555; margin-left: 1rem; }
+  .summary { margin-top: 1rem; font-size: 1rem; font-weight: bold; }
+  .summary.ok { color: #34a853; }
+  .summary.err { color: #d93025; }
+</style>
+</head>
+<body>
+
+<h1>Chip State Machine — Regression Tests</h1>
+<p class="meta">
+  Tests the <code>flowState</code> + <code>updateFlowState</code> + chip-selection logic.<br>
+  Each test simulates an agent response, advances state, and verifies which chips appear.<br>
+  Open this file in any browser. Green = PASS, Red = FAIL.
+</p>
+
+<div id="results"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// CHIP LOGIC — copied verbatim from orbit_chat.html (keep in sync)
+// ═══════════════════════════════════════════════════════════════════════════
+
+var flowState = {
+  dataChecked: false,
+  paymentDone: false,
+  restoreDone: false,
+  planDone:    false,
+};
+
+function resetFlowState() {
+  flowState.dataChecked = false;
+  flowState.paymentDone = false;
+  flowState.restoreDone = false;
+  flowState.planDone    = false;
+}
+
+function updateFlowState(text) {
+  if (!text) return;
+  var t   = text.toLowerCase();
+  var ord = /#ord-/i.test(text);
+
+  if (!flowState.dataChecked &&
+      /projects are intact|data is safe|at risk|exceeds.*30.day|data.*may|all \d+ projects/.test(t)) {
+    flowState.dataChecked = true;
+  }
+  if (ord) {
+    if (!flowState.restoreDone && /account is now active|back online/.test(t)) {
+      flowState.restoreDone = true;
+    }
+    if (!flowState.planDone && /plan/.test(t) && /(upgraded|downgraded)/.test(t)) {
+      flowState.planDone = true;
+    }
+    if (!flowState.paymentDone &&
+        /payment.*confirm|payment processed|charged.*card|balance.*cleared/.test(t)) {
+      flowState.paymentDone = true;
+    }
+  }
+}
+
+function getChips(agentText) {
+  // Returns the chips array without touching the DOM.
+  // Mirrors showContextChips() logic exactly.
+  if (!agentText || agentText.indexOf('{"status"') === 0) return [];
+  updateFlowState(agentText);
+  var t = agentText.toLowerCase().replace(/[*_`]/g, '');
+
+  if (/i'll connect you|routing you|connect you with our|connecting you with/.test(t)) {
+    return [];
+  }
+
+  if (flowState.planDone) {
+    return ['Check my storage', 'Compare plans', 'Tell me about AutoPay'];
+  } else if (flowState.restoreDone) {
+    return ['Upgrade my plan', 'Check my storage', 'Compare plans'];
+  } else if (flowState.paymentDone) {
+    return ['Check account status'];
+  } else if (flowState.dataChecked) {
+    if (/at risk|exceeds.*30.day|purged|archived|data.*may/.test(t)) {
+      return ['Talk to a specialist', 'Restore anyway', 'What data can be recovered?'];
+    } else if (/shall i go ahead|would you like.*charge|shall i charge|confirm.*charge/.test(t)) {
+      return ['Yes, go ahead', "What's the total?"];
+    } else {
+      return ['Pay now and restore', 'Upgrade to Business too', "What's the late fee?"];
+    }
+  } else {
+    if (/at risk|exceeds.*30.day|purged|archived|data.*may/.test(t)) {
+      return ['Talk to a specialist', 'Restore anyway', 'What data can be recovered?'];
+    } else if (/fee waiver|late fee|waiver.*applied|fee.*waived/.test(t)) {
+      return ['Pay and restore now', 'Tell me about AutoPay'];
+    } else if (/no balance due|all paid up|balance.*\$0/.test(t)) {
+      return ['Upgrade my plan', 'Check my storage', 'Compare plans'];
+    } else if (/already active|nothing to restore|account is active/.test(t)) {
+      return ['Upgrade my plan', "What's my balance?", 'Check my storage'];
+    } else if (/plan options|business plan|team plan|individual plan|enterprise plan|monthly.*\$|per month|upgrade.*plan|downgrade/.test(t)) {
+      return ['How do upgrades work?', 'What are seat limits?', 'Compare plans'];
+    } else if (/storage|upload.*fail|near.*limit|loading slow/.test(t)) {
+      return ['Upgrade for more storage', 'Archive old projects', 'Compare plans'];
+    } else if (/github|slack|integration|sync.*fail|auth.*fail|reconnect/.test(t)) {
+      return ['Reconnect integration', 'Check my storage', 'Compare plans'];
+    } else if (/what can i help|how can i help|help you with today|anything else.*i can|is there.*i can help/.test(t)) {
+      return ['Upgrade my plan', 'Compare plans', 'Check my storage'];
+    }
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST RUNNER
+// ═══════════════════════════════════════════════════════════════════════════
+
+var passed = 0, failed = 0;
+var results = document.getElementById('results');
+
+function suite(title) {
+  var div = document.createElement('div');
+  div.className = 'suite';
+  div.innerHTML = '<div class="suite-title">' + title + '</div>';
+  results.appendChild(div);
+  return div;
+}
+
+function test(suitEl, label, fn) {
+  var el = document.createElement('div');
+  try {
+    var msg = fn();
+    el.className = 'test pass';
+    el.innerHTML = '<span class="label">PASS</span>  ' + label +
+                   (msg ? '<div class="detail">' + msg + '</div>' : '');
+    passed++;
+  } catch (e) {
+    el.className = 'test fail';
+    el.innerHTML = '<span class="label">FAIL</span>  ' + label +
+                   '<div class="detail">' + e.message + '</div>';
+    failed++;
+  }
+  suitEl.appendChild(el);
+}
+
+function assertContains(chips, chip) {
+  if (chips.indexOf(chip) === -1) {
+    throw new Error('Expected chip "' + chip + '" not found in: [' + chips.join(', ') + ']');
+  }
+}
+
+function assertNotContains(chips, chip) {
+  if (chips.indexOf(chip) !== -1) {
+    throw new Error('Unexpected chip "' + chip + '" found in: [' + chips.join(', ') + ']');
+  }
+}
+
+function assertEmpty(chips) {
+  if (chips.length > 0) {
+    throw new Error('Expected no chips but got: [' + chips.join(', ') + ']');
+  }
+}
+
+function assertState(field, expected) {
+  if (flowState[field] !== expected) {
+    throw new Error('flowState.' + field + ' = ' + flowState[field] + ', expected ' + expected);
+  }
+}
+
+// ─── Suite 1: Initial state — active account fallback patterns ─────────────
+var s1 = suite('Suite 1 — Initial state (all flags false, response-text fallback)');
+resetFlowState();
+
+test(s1, 'Human escalation → no chips', function() {
+  var chips = getChips("I'll connect you with our support team right away.");
+  assertEmpty(chips);
+});
+
+test(s1, 'Card JSON response → no chips', function() {
+  resetFlowState();
+  var chips = getChips('{"status":"success","card_last4":"4321"}');
+  assertEmpty(chips);
+});
+
+test(s1, 'Late fee mention → billing chips', function() {
+  resetFlowState();
+  var chips = getChips('A late fee of $25 applies — AutoPay was not enabled.');
+  assertContains(chips, 'Pay and restore now');
+  assertContains(chips, 'Tell me about AutoPay');
+});
+
+test(s1, 'Account already active → plan/balance chips', function() {
+  resetFlowState();
+  var chips = getChips("Your account is already active — there's nothing to restore.");
+  assertContains(chips, 'Upgrade my plan');
+  assertContains(chips, "What's my balance?");
+});
+
+test(s1, 'Balance = $0 response → no balance chip', function() {
+  resetFlowState();
+  var chips = getChips('Your account is all paid up — no balance due. Is there anything else I can help you with?');
+  assertNotContains(chips, "What's my balance?");
+  assertContains(chips, 'Upgrade my plan');
+});
+
+test(s1, 'Storage near limit → storage upgrade chips', function() {
+  resetFlowState();
+  var chips = getChips("You're using 95 GB of 100 GB storage — you're near the limit. Uploads may fail.");
+  assertContains(chips, 'Upgrade for more storage');
+});
+
+test(s1, 'GitHub auth failure → integration chips', function() {
+  resetFlowState();
+  var chips = getChips('Your GitHub integration has an auth failure. Please reconnect it in Settings → Integrations.');
+  assertContains(chips, 'Reconnect integration');
+});
+
+test(s1, 'Plan comparison response → plan chips', function() {
+  resetFlowState();
+  var chips = getChips('The Business plan is $129/month and includes 500 GB storage and up to 30 users.');
+  assertContains(chips, 'How do upgrades work?');
+  assertContains(chips, 'Compare plans');
+});
+
+// ─── Suite 2: dataChecked state (Turn 1 diagnostic complete) ──────────────
+var s2 = suite('Suite 2 — dataChecked=true (post Turn-1, pre-payment)');
+resetFlowState();
+
+test(s2, 'Turn 1 data-safe response sets dataChecked', function() {
+  var chips = getChips("Hi Alex! Great news — all 12 projects are intact. Your data is safe. Your pending balance is $49. A late fee of $25 applies — your account is 2 months old. That's a total of $74. Would you like to pay with your card on file ending in 8831?");
+  assertState('dataChecked', true);
+  return 'dataChecked=true confirmed';
+});
+
+test(s2, 'Post Turn-1: "Pay now and restore" chip shown', function() {
+  assertContains(getChips("Your data is safe. Balance is $49."), 'Pay now and restore');
+});
+
+test(s2, 'Post Turn-1: "Pay now and restore" NOT blocked by state', function() {
+  // dataChecked=true but no payment yet — restore chip must appear
+  assertContains(getChips("12 projects intact, data safe."), 'Pay now and restore');
+});
+
+test(s2, 'AT RISK path → specialist chips', function() {
+  var chips = getChips('Your data may be at risk — the account has been suspended for 35 days, which exceeds our 30-day retention window.');
+  assertContains(chips, 'Talk to a specialist');
+  assertContains(chips, 'Restore anyway');
+  assertNotContains(chips, 'Pay now and restore');
+});
+
+test(s2, 'Consent confirmation phrasing → quick-confirm chips', function() {
+  var chips = getChips("Shall I go ahead and charge $74 to your card ending in 8831 to restore your account?");
+  assertContains(chips, 'Yes, go ahead');
+  assertNotContains(chips, 'Pay now and restore');
+});
+
+// ─── Suite 3: restoreDone state ───────────────────────────────────────────
+var s3 = suite('Suite 3 — restoreDone=true (account restored this session)');
+resetFlowState();
+// Simulate Turn 1 data check
+getChips('All 12 projects are intact. Data is safe. Balance $49.');
+// Simulate Turn 2 restore confirmation with #ORD-
+getChips('Your Team account is back online. $74 charged to card ending in 4321. A confirmation has been sent to your email on file (#ORD-E03G3). Is there anything else I can help you with today?');
+
+test(s3, 'Turn 2 restore response sets restoreDone via #ORD-', function() {
+  assertState('restoreDone', true);
+});
+
+test(s3, 'Post-restore: "Upgrade my plan" shown', function() {
+  assertContains(getChips('Your Team account is back online. #ORD-ABC1'), 'Upgrade my plan');
+});
+
+test(s3, 'Post-restore: "Pay now and restore" NOT shown (already done)', function() {
+  assertNotContains(getChips('Anything else I can help you with?'), 'Pay now and restore');
+});
+
+test(s3, 'Post-restore: "What\'s my balance?" NOT shown (balance is $0)', function() {
+  assertNotContains(getChips('Is there anything else I can help you with?'), "What's my balance?");
+});
+
+test(s3, 'Post-restore: "Check my balance" NOT shown (balance is $0)', function() {
+  assertNotContains(getChips('Is there anything else I can help you with?'), 'Check my balance');
+});
+
+test(s3, 'Post-restore balance check ($0): still no balance chip', function() {
+  // User asked "Check my balance", agent says $0 — should not show balance chip again
+  var chips = getChips('Your account is all paid up — no balance due. Is there anything else I can help you with?');
+  assertNotContains(chips, "What's my balance?");
+  assertNotContains(chips, 'Check my balance');
+});
+
+test(s3, 'Post-restore: "already restored" reference → no green box (handled by buildReceiptCard)', function() {
+  // This tests that the chip state stays correct when agent mentions restore in past tense
+  var chips = getChips("You've already restored your account. Is there anything else I can help you with today?");
+  // restoreDone is already true — should still show post-restore chips
+  assertContains(chips, 'Upgrade my plan');
+  assertNotContains(chips, 'Pay now and restore');
+});
+
+// ─── Suite 4: planDone state ──────────────────────────────────────────────
+var s4 = suite('Suite 4 — planDone=true (plan change executed)');
+
+test(s4, 'Plan upgrade receipt sets planDone via #ORD-', function() {
+  var chips = getChips('Your plan has been upgraded to Business. A confirmation has been sent to your email on file (#ORD-PL7X). Is there anything else I can help you with today?');
+  assertState('planDone', true);
+  assertContains(chips, 'Check my storage');
+  assertContains(chips, 'Compare plans');
+});
+
+test(s4, 'Post-plan: "Upgrade my plan" NOT shown (plan just changed)', function() {
+  assertNotContains(getChips('Is there anything else I can help you with?'), 'Upgrade my plan');
+});
+
+test(s4, 'Post-plan: "What\'s my balance?" NOT shown', function() {
+  assertNotContains(getChips('Is there anything else I can help you with?'), "What's my balance?");
+});
+
+// ─── Suite 5: State monotonicity (flags only advance, never reset) ────────
+var s5 = suite('Suite 5 — State monotonicity');
+resetFlowState();
+
+test(s5, 'dataChecked stays true after being set', function() {
+  getChips('All 12 projects intact. Data is safe.');
+  assertState('dataChecked', true);
+  // Subsequent response without data keywords should not reset it
+  getChips('Is there anything else?');
+  assertState('dataChecked', true);
+});
+
+test(s5, 'restoreDone stays true after being set', function() {
+  getChips('Account is back online. #ORD-ZZZ1');
+  assertState('restoreDone', true);
+  getChips('Is there anything else?');
+  assertState('restoreDone', true);
+});
+
+test(s5, 'planDone stays true after being set', function() {
+  getChips('Plan upgraded to Business. #ORD-PPP1');
+  assertState('planDone', true);
+  getChips('Anything else?');
+  assertState('planDone', true);
+});
+
+// ─── Suite 6: #ORD- gate (transactional completions need real order ref) ──
+var s6 = suite('Suite 6 — #ORD- gate prevents false positives');
+resetFlowState();
+
+test(s6, '"back online" without #ORD- does NOT set restoreDone', function() {
+  getChips("Your account was back online after our last session.");
+  assertState('restoreDone', false);
+  return 'restoreDone stays false without #ORD-';
+});
+
+test(s6, '"upgraded" without #ORD- does NOT set planDone', function() {
+  resetFlowState();
+  getChips("You could be upgraded to Business plan.");
+  assertState('planDone', false);
+});
+
+test(s6, '"balance cleared" without #ORD- does NOT set paymentDone', function() {
+  resetFlowState();
+  getChips("Once you pay, the balance will be cleared.");
+  assertState('paymentDone', false);
+});
+
+// ─── Suite 7: resetFlowState clears everything ────────────────────────────
+var s7 = suite('Suite 7 — resetFlowState (called on new session)');
+
+test(s7, 'All flags false after reset', function() {
+  // Set some state
+  getChips('All projects intact. #ORD-RST1 back online. Plan upgraded. #ORD-RST2');
+  // Reset as initSession() does
+  resetFlowState();
+  assertState('dataChecked', false);
+  assertState('paymentDone', false);
+  assertState('restoreDone', false);
+  assertState('planDone',    false);
+  return 'All flags cleared';
+});
+
+test(s7, 'After reset, full Turn-1 response re-sets dataChecked', function() {
+  var chips = getChips('Hi Jordan! All 3 projects are intact. Data is safe. Balance $49.');
+  assertState('dataChecked', true);
+  assertContains(chips, 'Pay now and restore');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUMMARY
+// ═══════════════════════════════════════════════════════════════════════════
+
+var summary = document.createElement('div');
+summary.className = 'summary ' + (failed === 0 ? 'ok' : 'err');
+summary.textContent = (failed === 0)
+  ? '✓ All ' + passed + ' tests passed'
+  : '✗ ' + failed + ' of ' + (passed + failed) + ' tests FAILED';
+results.appendChild(summary);
+
+console.log('Chip state tests: ' + passed + ' passed, ' + failed + ' failed');
+</script>
+</body>
+</html>

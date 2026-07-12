@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Team &amp; Administration — Orbit Help Center</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8fc; color: #1a1a2e; }
+  nav { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 40px; display: flex; align-items: center; height: 64px; gap: 32px; }
+  .nav-logo { font-size: 22px; font-weight: 700; color: #5b4cf5; letter-spacing: -0.5px; text-decoration: none; }
+  .nav-logo span { color: #1a1a2e; }
+  .nav-links a { font-size: 14px; color: #555; text-decoration: none; margin-right: 24px; }
+  .nav-links a:hover { color: #5b4cf5; }
+  .nav-right { margin-left: auto; }
+  .nav-right a { background: #5b4cf5; color: #fff; font-size: 14px; font-weight: 600; padding: 8px 18px; border-radius: 8px; text-decoration: none; }
+  .breadcrumb { max-width: 860px; margin: 24px auto 0; padding: 0 32px; font-size: 13px; color: #9ca3af; }
+  .breadcrumb a { color: #5b4cf5; text-decoration: none; }
+  .page { max-width: 860px; margin: 0 auto; padding: 32px 32px 80px; }
+  .page-header { margin-bottom: 40px; border-bottom: 1px solid #e5e7eb; padding-bottom: 24px; }
+  .page-header h1 { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+  .page-header p { font-size: 16px; color: #6b7280; }
+  h2 { font-size: 20px; font-weight: 700; margin: 36px 0 16px; }
+  p { font-size: 15px; line-height: 1.7; color: #374151; margin-bottom: 16px; }
+  ul { margin: 0 0 16px 20px; }
+  ul li { font-size: 15px; line-height: 1.8; color: #374151; }
+
+  .callout { border-left: 4px solid #5b4cf5; background: #ede9fe; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .callout p { margin: 0; font-size: 14px; color: #374151; }
+  .callout strong { color: #5b4cf5; }
+
+  .warning { border-left: 4px solid #f59e0b; background: #fffbeb; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+  .warning p { margin: 0; font-size: 14px; color: #374151; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 14px; }
+  th { background: #f3f4f6; text-align: left; padding: 12px 16px; font-weight: 600; }
+  td { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #374151; }
+
+  .faq-item { border-bottom: 1px solid #e5e7eb; padding: 20px 0; }
+  .faq-item h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .faq-item p { font-size: 14px; color: #6b7280; margin-bottom: 0; }
+
+  .related { background: #ede9fe; border-radius: 12px; padding: 24px; margin-top: 48px; }
+  .related h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: #5b4cf5; }
+  .related a { display: block; font-size: 14px; color: #1a1a2e; text-decoration: none; padding: 4px 0; }
+  .related a:hover { color: #5b4cf5; text-decoration: underline; }
+
+  footer { background: #1a1a2e; color: #9ca3af; text-align: center; padding: 32px; font-size: 13px; }
+  footer a { color: #9ca3af; text-decoration: none; margin: 0 12px; }
+  .footer-logo { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">Orbit<span>.</span></a>
+  <div class="nav-links">
+    <a href="#">Product</a>
+    <a href="#">Pricing</a>
+    <a href="index.html">Help Center</a>
+  </div>
+  <div class="nav-right"><a href="#">Sign In</a></div>
+</nav>
+
+<div class="breadcrumb">
+  <a href="index.html">Help Center</a> › Team &amp; Administration
+</div>
+
+<div class="page">
+  <div class="page-header">
+    <h1>Team &amp; Administration</h1>
+    <p>Managing seats, adding and removing members, roles, account ownership, and what happens when you change plans.</p>
+  </div>
+
+  <h2>Seats and Team Size</h2>
+  <p>Each Orbit plan includes a maximum number of active seats. A seat is consumed by any team member with an active account login — including admins. Your current seat count is visible in <strong>Settings → Team → Active Members</strong>.</p>
+
+  <table>
+    <thead>
+      <tr><th>Plan</th><th>Max Seats</th><th>Price/mo</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Individual</td><td>1</td><td>$10</td></tr>
+      <tr><td>Team</td><td>10</td><td>$49</td></tr>
+      <tr><td>Business</td><td>30</td><td>$129</td></tr>
+      <tr><td>Enterprise</td><td>100</td><td>$399</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <p><strong>Important for plan downgrades:</strong> If your active seat count exceeds the new plan's maximum, the downgrade cannot proceed automatically. You must deactivate enough members first. Our support team can assist if you need help managing this.</p>
+  </div>
+
+  <h2>Adding Team Members</h2>
+  <p>To invite a new member: <strong>Settings → Team → Invite Member</strong>. Enter their work email address and assign a role (Member or Admin). They will receive an invitation email valid for 7 days. A seat is consumed as soon as the invitation is accepted.</p>
+  <p>If you are at your plan's seat limit, the invite button will be disabled. You must either upgrade your plan or deactivate an existing member before adding a new one.</p>
+
+  <h2>Removing Team Members</h2>
+  <p>To remove a member: <strong>Settings → Team → [Member name] → Deactivate</strong>. Deactivated members lose access immediately. Their projects and files remain in the workspace and are reassigned to the account owner. The seat is freed at the end of the current billing cycle.</p>
+
+  <div class="warning">
+    <p><strong>Note:</strong> Deactivating a member does not delete their work. All projects, tasks, and files they created remain accessible to the rest of the team.</p>
+  </div>
+
+  <h2>Roles and Permissions</h2>
+  <p>Orbit has two roles within a team account:</p>
+  <ul>
+    <li><strong>Admin:</strong> Full access — can manage billing, invite/remove members, change the plan, and access all projects.</li>
+    <li><strong>Member:</strong> Access to assigned projects only. Cannot view billing, manage team membership, or change the plan.</li>
+  </ul>
+  <p>To change a member's role: <strong>Settings → Team → [Member name] → Change Role</strong>. Only Admins can change roles.</p>
+
+  <h2>Account Ownership Transfer</h2>
+  <p>The account owner is the Admin who created the Orbit account and holds billing responsibility. To transfer ownership to another Admin: <strong>Settings → Account → Transfer Ownership</strong>. Both parties will receive a confirmation email. Billing transfers to the new owner's payment method on the next invoice date.</p>
+  <p>If the original owner leaves the company and you need an emergency ownership transfer, contact our support team at <strong>support@orbit.io</strong> with proof of authorization.</p>
+
+  <h2>Seat Count and Plan Changes</h2>
+  <p>When upgrading, your existing seat count is always within the new plan's limit — upgrades are never blocked by seat count. When downgrading, the following check applies:</p>
+  <ul>
+    <li>If your active seat count is <strong>within</strong> the new plan's maximum → downgrade proceeds normally.</li>
+    <li>If your active seat count <strong>exceeds</strong> the new plan's maximum → downgrade is blocked until you deactivate the required number of members.</li>
+  </ul>
+  <p>Example: If you have 12 active seats on Business and want to downgrade to Team (max 10), you must deactivate at least 2 members before the downgrade can be processed.</p>
+
+  <h2>Frequently Asked Questions</h2>
+
+  <div class="faq-item">
+    <h3>How do I know how many seats I'm currently using?</h3>
+    <p>Go to <strong>Settings → Team → Active Members</strong>. The count shown is your current active seat usage. Your plan's maximum is displayed next to it (e.g., "8 / 10 seats used").</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>Can I downgrade my plan if I have too many active seats?</h3>
+    <p>No — the downgrade is blocked until your active seat count is at or below the target plan's maximum. Deactivate the required members first, then request the downgrade. Our support team can walk you through this process.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>What happens to a deactivated member's projects?</h3>
+    <p>All their projects, tasks, and files remain in the workspace and are accessible to the rest of the team. Nothing is deleted. The projects are reassigned to the account owner until a new owner is designated.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>Can a Member invite other people to the team?</h3>
+    <p>No. Only Admins can invite or remove team members. Members have access to assigned projects only and cannot manage team membership or billing.</p>
+  </div>
+
+  <div class="faq-item">
+    <h3>We're expanding and need more than 100 seats. What are our options?</h3>
+    <p>The Enterprise plan supports up to 100 seats. For teams larger than 100, please contact our sales team at <strong>sales@orbit.io</strong> — we offer custom enterprise contracts with volume pricing and dedicated support.</p>
+  </div>
+
+  <div class="related">
+    <h3>Related articles</h3>
+    <a href="plans_pricing.html">Plans &amp; Pricing — comparing tiers and seat limits</a>
+    <a href="upgrades_downgrades.html">Upgrading or downgrading your plan</a>
+    <a href="billing_payment.html">Billing &amp; Payment — invoices and AutoPay</a>
+    <a href="cancellation.html">Cancellation &amp; Offboarding</a>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">Orbit.</div>
+  <div>
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms of Service</a>
+    <a href="#">Status</a>
+    <a href="#">Contact Support</a>
+  </div>
+  <p style="margin-top:16px;">© 2026 Orbit Technologies, Inc. All rights reserved.</p>
+</footer>
+
+</body>
+</html>
