@@ -380,7 +380,7 @@
         </svg>
       </button>
     </div>
-    <p class="input-hint">Orbit AI &middot; Powered by Google ADK &nbsp;&middot;&nbsp; Responses may not cover every scenario</p>
+    <p class="input-hint">Orbit AI &middot; Powered by Google ADK</p>
   </div>
 </div>
 
@@ -388,17 +388,19 @@
 const APP_NAME  = 'pay_restore_demo';
 const BASE_URL  = 'http://127.0.0.1:8000';
 
-// ── localStorage keys ─────────────────────────────────────────────────────
-const LS_USER    = 'orbit_userId';
-const LS_SESSION = 'orbit_sessionId';
-const LS_MSGS    = 'orbit_messages';
+// ── localStorage keys (persistence disabled — each tab is an independent session) ──
+// const LS_USER    = 'orbit_userId';
+// const LS_SESSION = 'orbit_sessionId';
+// const LS_MSGS    = 'orbit_messages';
 
-// Stable userId — generated once and reused across page reloads.
-var USER_ID = localStorage.getItem(LS_USER);
-if (!USER_ID) {
-  USER_ID = 'demo-user-' + Math.random().toString(36).slice(2, 8);
-  try { localStorage.setItem(LS_USER, USER_ID); } catch(e) {}
-}
+// Fresh userId per page load — no cross-tab or cross-refresh sharing.
+var USER_ID = 'demo-user-' + Math.random().toString(36).slice(2, 8);
+// Previously: persisted in localStorage so the same user was reused across tabs/reloads.
+// var USER_ID = localStorage.getItem(LS_USER);
+// if (!USER_ID) {
+//   USER_ID = 'demo-user-' + Math.random().toString(36).slice(2, 8);
+//   try { localStorage.setItem(LS_USER, USER_ID); } catch(e) {}
+// }
 
 var sessionId = null;
 var isWaiting = false;
@@ -448,23 +450,23 @@ function updateFlowState(text) {
   }
 }
 
-// ── Session persistence helpers ───────────────────────────────────────────
+// ── Session persistence helpers (disabled — no-ops while persistence is off) ──
 
 function saveMessages() {
-  if (!sessionId) return;
-  try { localStorage.setItem(LS_MSGS + '_' + sessionId, JSON.stringify(messageHistory)); } catch(e) {}
+  // if (!sessionId) return;
+  // try { localStorage.setItem(LS_MSGS + '_' + sessionId, JSON.stringify(messageHistory)); } catch(e) {}
 }
 
 function saveSession() {
-  try { localStorage.setItem(LS_SESSION, sessionId); } catch(e) {}
+  // try { localStorage.setItem(LS_SESSION, sessionId); } catch(e) {}
 }
 
 function clearSessionStorage() {
-  try {
-    var old = localStorage.getItem(LS_SESSION);
-    if (old) localStorage.removeItem(LS_MSGS + '_' + old);
-    localStorage.removeItem(LS_SESSION);
-  } catch(e) {}
+  // try {
+  //   var old = localStorage.getItem(LS_SESSION);
+  //   if (old) localStorage.removeItem(LS_MSGS + '_' + old);
+  //   localStorage.removeItem(LS_SESSION);
+  // } catch(e) {}
   messageHistory = [];
 }
 
@@ -473,48 +475,14 @@ function clearSessionStorage() {
 async function initSession() {
   resetFlowState();
 
-  // Try to restore a previous session from localStorage.
-  var storedSessionId = null;
-  try { storedSessionId = localStorage.getItem(LS_SESSION); } catch(e) {}
+  // Session restore from localStorage is disabled — each page load always starts fresh.
+  // To re-enable: uncomment the block below and the LS_* constants / persistence helpers above.
+  //
+  // var storedSessionId = null;
+  // try { storedSessionId = localStorage.getItem(LS_SESSION); } catch(e) {}
+  // if (storedSessionId) { ... restore logic ... }
 
-  if (storedSessionId) {
-    var storedMsgs = [];
-    try { storedMsgs = JSON.parse(localStorage.getItem(LS_MSGS + '_' + storedSessionId) || '[]'); } catch(e) {}
-
-    if (storedMsgs.length > 0) {
-      // Verify the session still exists on the server (fails after server restart).
-      var sessionValid = false;
-      try {
-        var chk = await fetch(BASE_URL + '/apps/' + APP_NAME + '/users/' + USER_ID + '/sessions/' + storedSessionId);
-        sessionValid = chk.ok;
-      } catch(e) {}
-
-      if (sessionValid) {
-        sessionId = storedSessionId;
-        messageHistory = storedMsgs;
-        // Hide welcome and render stored messages (no chips for history)
-        hideWelcome();
-        storedMsgs.forEach(function(m) {
-          var wrapEl = addBubbleNode(m.role, m.text, null);
-          if (m.role === 'agent' && m.text) {
-            var bubble = wrapEl.querySelector('.bubble');
-            var receiptCard = buildReceiptCard(m.text);
-            if (receiptCard && bubble) bubble.appendChild(receiptCard);
-            var escCard = buildEscalationCard(m.text);
-            if (escCard && bubble) bubble.appendChild(escCard);
-          }
-        });
-        setStatus('online', 'Online (session restored)');
-        document.getElementById('userInput').focus();
-        return;
-      }
-      // Session no longer exists on server (e.g. server restarted) — create fresh.
-      clearSessionStorage();
-    }
-  }
-
-  // No valid stored session — create a new one.
-  clearSessionStorage();
+  // Always create a new session.
   try {
     const res = await fetch(BASE_URL + '/apps/' + APP_NAME + '/users/' + USER_ID + '/sessions', {
       method: 'POST',
@@ -524,7 +492,7 @@ async function initSession() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const session = await res.json();
     sessionId = session.id;
-    saveSession();
+    // saveSession();  // persistence disabled
     setStatus('online', 'Online');
     document.getElementById('userInput').focus();
   } catch (e) {
@@ -608,8 +576,10 @@ async function sendMessage(overrideText) {
   var typingId = addTyping();
 
   // Streaming state
-  var streamRow    = null;   // the .msg-wrap element created on first chunk
+  var streamRow    = null;   // the .msg-wrap element created on first chunk (bubble 1)
   var streamBubble = null;   // the .bubble element inside streamRow
+  var streamRow2   = null;   // second bubble created when __SPLIT__ is seen
+  var streamBubble2 = null;
   var accumulated  = '';
   var firstChunk   = true;
 
@@ -626,12 +596,23 @@ async function sendMessage(overrideText) {
       }
 
       // Strip internal tokens from the live streaming display
-      var displayText = accumulated
-        .split('__CARD_FORM__')[0]
-        .replace('__ESCALATION__', '')
-        .trim();
-      if (streamBubble) {
-        streamBubble.innerHTML = renderMarkdown(displayText);
+      var hasSplitStream = accumulated.indexOf('__SPLIT__') !== -1;
+      if (hasSplitStream) {
+        var splitParts = accumulated.split('__SPLIT__');
+        var pre  = splitParts[0].split('__CARD_FORM__')[0].replace('__ESCALATION__', '').trim();
+        var post = splitParts[1].split('__CARD_FORM__')[0].replace('__ESCALATION__', '').trim();
+        if (streamBubble) streamBubble.innerHTML = renderMarkdown(pre);
+        if (!streamRow2) {
+          streamRow2    = addBubbleNode('agent', '', null);
+          streamBubble2 = streamRow2.querySelector('.bubble');
+        }
+        if (streamBubble2) streamBubble2.innerHTML = renderMarkdown(post);
+      } else {
+        var displayText = accumulated
+          .split('__CARD_FORM__')[0]
+          .replace('__ESCALATION__', '')
+          .trim();
+        if (streamBubble) streamBubble.innerHTML = renderMarkdown(displayText);
       }
       scrollBottom();
     });
@@ -656,15 +637,56 @@ async function sendMessage(overrideText) {
       return;
     }
 
+    var hasSplitFinal = agentText.indexOf('__SPLIT__') !== -1;
+
     if (!streamRow) {
-      // Nothing streamed at all — fall back to static bubble
-      addBubble('agent', agentText);
+      // Nothing streamed at all — fall back to static bubble(s)
+      if (hasSplitFinal) {
+        var sp = agentText.split('__SPLIT__');
+        addBubble('agent', sp[0].replace('__ESCALATION__', '').trim());
+        addBubble('agent', sp[1].replace('__ESCALATION__', '').trim());
+      } else {
+        addBubble('agent', agentText);
+      }
+    } else if (hasSplitFinal) {
+      // Two-bubble path: finalize bubble 1 and bubble 2 separately.
+      var splitFinalParts = agentText.split('__SPLIT__');
+      var part1 = splitFinalParts[0].trim();
+      var part2 = splitFinalParts[1].trim();
+
+      // Bubble 1 — restore confirmation + receipt card
+      var hasEsc1   = part1.indexOf('__ESCALATION__') !== -1;
+      var display1  = part1.replace('__ESCALATION__', '').trim();
+      if (streamBubble) streamBubble.innerHTML = renderMarkdown(display1);
+      var rc1 = buildReceiptCard(display1);
+      if (rc1 && streamBubble) streamBubble.appendChild(rc1);
+      if (hasEsc1) {
+        var ec1 = buildEscalationCard(display1);
+        if (ec1 && streamBubble) streamBubble.appendChild(ec1);
+      }
+
+      // Bubble 2 — plan upgrade question + context chips
+      var hasEsc2  = part2.indexOf('__ESCALATION__') !== -1;
+      var display2 = part2.replace('__ESCALATION__', '').trim();
+      if (!streamRow2) {
+        // Edge case: split token arrived at the very end of stream
+        var tmpWrap = addBubbleNode('agent', display2, null);
+        streamRow2    = tmpWrap;
+        streamBubble2 = tmpWrap.querySelector('.bubble');
+      } else if (streamBubble2) {
+        streamBubble2.innerHTML = renderMarkdown(display2);
+      }
+      if (hasEsc2 && streamBubble2) {
+        var ec2 = buildEscalationCard(display2);
+        if (ec2) streamBubble2.appendChild(ec2);
+      }
+      if (!isCardJson && !hasEsc2) showContextChips(display2, streamRow2);
+
     } else {
-      // Final render already done in streaming callback; inject rich cards and chips.
+      // Single-bubble path (unchanged behaviour)
       var hasEscalation = agentText.indexOf('__ESCALATION__') !== -1;
       var displayText = agentText.replace('__ESCALATION__', '').trim();
 
-      // Update bubble to strip the token if it snuck into the streamed text
       if (hasEscalation && streamBubble) {
         streamBubble.innerHTML = renderMarkdown(displayText);
       }
@@ -677,12 +699,11 @@ async function sendMessage(overrideText) {
         if (escCard && streamBubble) streamBubble.appendChild(escCard);
       }
 
-      // Show contextual chips (skip for card JSON responses)
       if (!isCardJson && !hasEscalation) showContextChips(displayText, streamRow);
     }
 
-    // Persist agent message (strip internal tokens)
-    var persistText = agentText.replace('__ESCALATION__', '').replace('__CARD_FORM__', '').trim();
+    // Persist agent message — keep __ESCALATION__ and __SPLIT__ so restore path can re-render cards/bubbles; strip __CARD_FORM__
+    var persistText = agentText.replace('__CARD_FORM__', '').trim();
     if (persistText && !isCardJson) { messageHistory.push({ role: 'agent', text: persistText }); saveMessages(); }
 
   } catch (e) {

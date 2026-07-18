@@ -177,8 +177,9 @@ POST-TOOL GUARD (Step 2):
 
 TRANSITION GUARD:
     Return: "Balance check complete. Account [id] has a pending balance of $[amount].
-             [If waiver_granted=True:  'Fee waiver: your late fee has been waived [T4 reason].']
-             [If waiver_granted=False: 'Fee waiver: a late fee of $[late_fee_amount] applies — [T4 reason].']"
+             [If waiver_granted=True:  omit all fee mention — return balance only.]
+             [If waiver_granted=False: 'A late fee of $[late_fee_amount] applies — [T4 reason].
+              Total to restore: $[amount + late_fee_amount].']"
     STOP.
 
 ================================================================================
@@ -225,9 +226,9 @@ POST-TOOL GUARD:
 TRANSITION GUARD:
     Return: "Payment processed. $[amount_charged] charged to card ending in [card_last4_used].
              Balance cleared.
-             [If waiver_granted=True:  'Your late fee has been waived [T4 reason].']
-             [If waiver_granted=False: 'A late fee of $[late_fee_amount] was included in
-              the total charge — [T4 reason].']"
+             [If waiver_granted=True:  'Late fee waived.']
+             [If waiver_granted=False: 'A late fee of $[late_fee_amount] was included —
+              [T4 reason].']"
     STOP.
 
 ================================================================================

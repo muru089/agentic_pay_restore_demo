@@ -189,8 +189,16 @@ async def llm_judge(scenario: dict, responses: list, check_overanswering: bool =
     api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     client = genai_client.Client(api_key=api_key)
 
+    def _clean(text: str) -> str:
+        """Strip UI-only tokens that have no bearing on outcome quality."""
+        return (text
+                .replace('__SPLIT__', '')
+                .replace('__CARD_FORM__', '')
+                .replace('__ESCALATION__', '')
+                .strip())
+
     transcript = "\n\n".join([
-        f"Turn {n}:\nUSER:  {u}\nAGENT: {a}"
+        f"Turn {n}:\nUSER:  {u}\nAGENT: {_clean(a)}"
         for n, u, a in responses
     ])
 
